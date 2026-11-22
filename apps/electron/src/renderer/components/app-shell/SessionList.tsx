@@ -5,7 +5,7 @@ import { useSetAtom } from "jotai"
 import { isToday, isYesterday, format, startOfDay } from "date-fns"
 import { getDateLocale } from "@craft-agent/shared/i18n"
 import { useAction } from "@/actions"
-import { Inbox, Archive } from "lucide-react"
+import { Inbox, Archive, Folder, Plus } from "lucide-react"
 
 import { getSessionStatus } from "@/utils/session"
 import * as storage from "@/lib/local-storage"
@@ -32,6 +32,12 @@ import { sendToWorkspaceAtom, type SessionMeta } from "@/atoms/sessions"
 import type { ViewConfig } from "@craft-agent/shared/views"
 import type { SessionStatusId, SessionStatus } from "@/config/session-status-config"
 import { buildCollapsedGroupsScopeSuffix } from "@/utils/session-list-collapse"
+import {
+  WORKSPACE_FOLDER_GROUP_KEY,
+  getFolderGroupKey,
+  getFolderGroupLabel,
+  getFolderLabelFromGroupKey,
+} from "@/utils/session-folder-group"
 import { ancestorIds, flatRow, type SessionListRow } from "@/utils/session-tree"
 import { FlipOnChange, SPRING } from "@craft-agent/ui/motion"
 import { useListReorderFlip } from "@/hooks/useListReorderFlip"
@@ -39,7 +45,7 @@ import { useListReorderFlip } from "@/hooks/useListReorderFlip"
 export type { SessionListRow }
 
 /** Grouping mode for chat list */
-export type ChatGroupingMode = 'date' | 'status' | 'unread' | 'project'
+export type ChatGroupingMode = 'folder' | 'date' | 'status' | 'unread' | 'project'
 
 interface SessionListProps {
   items: SessionMeta[]
@@ -95,6 +101,8 @@ interface SessionListProps {
   onNavigateToSession?: (sessionId: string) => void
   /** Session-level pending prompt marker (permission/admin approval) */
   hasPendingPrompt?: (sessionId: string) => boolean
+  /** Optional callback to start a new session directly inside a specific working folder */
+  onNewSessionInFolder?: (workingDirectory: string) => void
   /** DOM-verified match info for the active session (from ChatDisplay) */
   activeChatMatchInfo?: { sessionId: string | null; count: number; isHighlighting?: boolean }
 }
@@ -156,6 +164,7 @@ export function SessionList({
   focusedSessionId,
   onNavigateToSession,
   hasPendingPrompt,
+  onNewSessionInFolder,
   activeChatMatchInfo,
 }: SessionListProps) {
   const { t, i18n } = useTranslation()
@@ -320,6 +329,97 @@ export function SessionList({
     // Every row is grouped and sorted by its family's view (`groupItem`), which
     // all rows of a family share, so the stable sorts keep a family together.
     const rows = visibleRows
+
+    if (groupingMode === 'folder') {
+      const generalLabel = t('sidebar.generalFolder', { defaultValue: '通用会话' })
+      const rawDirByKey = new Map<string, string>()
+      const latestAtByKey = new Map<string, number>()
+
+      for (const metaItem of items) {
+        const key = getFolderGroupKey(metaItem.workingDirectory)
+        if (metaItem.workingDirectory && !rawDirByKey.has(key)) {
+          rawDirByKey.set(key, metaItem.workingDirectory)
+        }
+        const ts = metaItem.lastMessageAt || 0
+        if (ts > (latestAtByKey.get(key) ?? 0)) {
+          latestAtByKey.set(key, ts)
+        }
+      }
+
+      const groupsByKey = new Map<string, SessionListRow[]>()
+      for (const row of rows) {
+        const key = getFolderGroupKey(row.groupItem.workingDirectory)
+        if (row.groupItem.workingDirectory && !rawDirByKey.has(key)) {
+          rawDirByKey.set(key, row.groupItem.workingDirectory)
+        }
+        const ts = row.groupItem.lastMessageAt || 0
+        if (ts > (latestAtByKey.get(key) ?? 0)) {
+          latestAtByKey.set(key, ts)
+        }
+        if (!groupsByKey.has(key)) groupsByKey.set(key, [])
+        groupsByKey.get(key)!.push(row)
+      }
+
+      for (const meta of collapsedGroupsMeta) {
+        if (!groupsByKey.has(meta.key)) {
+          groupsByKey.set(meta.key, [])
+        }
+      }
+
+      const orderedGroups: EntityListGroup<SessionListRow>[] = []
+      for (const [key, groupRows] of groupsByKey) {
+        groupRows.sort((a, b) => (b.groupItem.lastMessageAt || 0) - (a.groupItem.lastMessageAt || 0))
+        const collapsedMeta = collapsedGroupsMeta.find(m => m.key === key)
+        const rawDir = rawDirByKey.get(key)
+        const label = rawDir
+          ? getFolderGroupLabel(rawDir, generalLabel)
+          : getFolderLabelFromGroupKey(key, generalLabel)
+
+        const newInFolderLabel = t('sidebar.newSessionInFolder', {
+          folder: label,
+          defaultValue: `在 ${label} 新建会话`,
+        })
+
+        orderedGroups.push({
+          key,
+          label,
+          icon: <Folder className="size-3.5 shrink-0 text-tertiary/80" aria-hidden="true" />,
+          tooltip: rawDir ?? generalLabel,
+          action: rawDir && onNewSessionInFolder ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                onNewSessionInFolder(rawDir)
+              }}
+              title={newInFolderLabel}
+              aria-label={newInFolderLabel}
+              className="inline-grid place-items-center size-5 rounded-md text-tertiary opacity-0 group-hover/header:opacity-100 focus-visible:opacity-100 hover:bg-fill-pressed hover:text-foreground transition-all duration-micro cursor-pointer"
+            >
+              <Plus className="size-3" />
+            </button>
+          ) : undefined,
+          items: groupRows,
+          collapsible: true,
+          ...(collapsedMeta ? { collapsedCount: collapsedMeta.count } : {}),
+        })
+      }
+
+      orderedGroups.sort((a, b) => {
+        if (a.key === WORKSPACE_FOLDER_GROUP_KEY && b.key !== WORKSPACE_FOLDER_GROUP_KEY) return 1
+        if (b.key === WORKSPACE_FOLDER_GROUP_KEY && a.key !== WORKSPACE_FOLDER_GROUP_KEY) return -1
+        return (latestAtByKey.get(b.key) ?? 0) - (latestAtByKey.get(a.key) ?? 0)
+      })
+
+      if (orderedGroups.length === 1) {
+        orderedGroups[0].collapsible = false
+      }
+
+      return {
+        rows: orderedGroups.flatMap(g => g.items),
+        groups: orderedGroups,
+      }
+    }
 
     if (groupingMode === 'unread') {
       // Two fixed buckets: unread on top, read below. Within each, items keep
@@ -537,12 +637,15 @@ export function SessionList({
       rows,
       groups: orderedGroups,
     }
-  }, [isSearchMode, matchingFilterItems, otherResultItems, visibleRows, groupingMode, sessionStatuses, projects, collapsedGroupsMeta, families, t, i18n.resolvedLanguage])
+  }, [isSearchMode, matchingFilterItems, otherResultItems, visibleRows, items, groupingMode, sessionStatuses, projects, collapsedGroupsMeta, families, onNewSessionInFolder, t, i18n.resolvedLanguage])
 
   const flatRows = rowData.rows
 
   const collapseAllGroups = useCallback(() => {
-    if (groupingMode === 'status') {
+    if (groupingMode === 'folder') {
+      const allKeys = new Set(items.map(item => getFolderGroupKey(item.workingDirectory)))
+      setCollapsedGroups(allKeys)
+    } else if (groupingMode === 'status') {
       const allKeys = new Set(items.map(item => `status-${getSessionStatus(item)}`))
       setCollapsedGroups(allKeys)
     } else if (groupingMode === 'unread') {

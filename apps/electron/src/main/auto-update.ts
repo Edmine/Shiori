@@ -350,6 +350,10 @@ function checkForExistingDownload(): { exists: boolean; version?: string } {
   }
 }
 
+function isAutoUpdateEnabled(): boolean {
+  return Boolean(process.env.SHIORI_UPDATE_URL?.trim())
+}
+
 /**
  * Check for available updates.
  * Returns the current UpdateInfo state after check completes.
@@ -357,6 +361,17 @@ function checkForExistingDownload(): { exists: boolean; version?: string } {
  * @param options.autoDownload - If false, only checks without downloading (for manual "Check Now")
  */
 export async function checkForUpdates(options: CheckOptions = {}): Promise<UpdateInfo> {
+  if (!isAutoUpdateEnabled()) {
+    updateInfo = {
+      available: false,
+      currentVersion: getAppVersion(),
+      latestVersion: null,
+      downloadState: 'idle',
+      downloadProgress: 0,
+    }
+    return getUpdateInfo()
+  }
+
   const { autoDownload = true } = options
 
   // Temporarily override autoDownload for this check if needed
@@ -491,6 +506,10 @@ export interface UpdateOnLaunchResult {
  * - Auto-downloads if update available
  */
 export async function checkForUpdatesOnLaunch(): Promise<UpdateOnLaunchResult> {
+  if (!isAutoUpdateEnabled()) {
+    return { action: 'none', reason: 'disabled' }
+  }
+
   autoUpdateLog.info('Checking for updates on launch...')
 
   const info = await checkForUpdates({ autoDownload: true })

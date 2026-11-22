@@ -14,6 +14,7 @@ import {
   Calendar,
   Check,
   Flag,
+  Folder,
   FolderKanban,
   Inbox,
   Layers,
@@ -881,6 +882,11 @@ export function SessionFilterMenu({
                       <span className="flex-1">{t("sidebar.group")}</span>
                     </StyledDropdownMenuSubTrigger>
                     <StyledDropdownMenuSubContent minWidth="min-w-[140px]">
+                      <StyledDropdownMenuItem onClick={() => setChatGroupingMode('folder')}>
+                        <Folder className="h-3.5 w-3.5" />
+                        <span className="flex-1">{t("sidebar.groupByFolder", { defaultValue: "按目录" })}</span>
+                        {chatGroupingMode === 'folder' && <Check className="h-3 w-3 text-tertiary" />}
+                      </StyledDropdownMenuItem>
                       <StyledDropdownMenuItem onClick={() => setChatGroupingMode('date')}>
                         <Calendar className="h-3.5 w-3.5" />
                         <span className="flex-1">{t("sidebar.groupByDate")}</span>

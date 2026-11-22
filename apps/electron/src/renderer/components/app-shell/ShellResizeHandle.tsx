@@ -10,7 +10,6 @@ import { getResizeGradientStyle } from "@/hooks/useResizeGradient"
 import {
   PANEL_SASH_HIT_WIDTH,
   PANEL_SASH_LINE_WIDTH,
-  PANEL_STACK_VERTICAL_OVERFLOW,
 } from "./panel-constants"
 
 interface ShellResizeHandleProps {
@@ -47,8 +46,8 @@ export function ShellResizeHandle({
       className="absolute cursor-col-resize z-panel flex justify-center"
       style={{
         width: PANEL_SASH_HIT_WIDTH,
-        top: PANEL_STACK_VERTICAL_OVERFLOW,
-        bottom: PANEL_STACK_VERTICAL_OVERFLOW,
+        top: 0,
+        bottom: 0,
         left,
       }}
     >

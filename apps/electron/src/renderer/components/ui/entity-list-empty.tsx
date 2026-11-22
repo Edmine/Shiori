@@ -31,7 +31,8 @@ export function EntityListEmptyScreen({
   className = 'flex-1',
 }: EntityListEmptyScreenProps) {
   const { t } = useTranslation()
-  const hasActions = docKey || children
+  const docUrl = docKey ? getDocUrl(docKey) : ''
+  const hasActions = Boolean(docUrl) || Boolean(children)
 
   return (
     <Empty className={className}>
@@ -44,8 +45,8 @@ export function EntityListEmptyScreen({
       </EmptyHeader>
       {hasActions && (
         <EmptyContent>
-          {docKey && (
-            <Button variant="secondary" onClick={() => window.electronAPI.openUrl(getDocUrl(docKey))}>
+          {docUrl && (
+            <Button variant="secondary" onClick={() => window.electronAPI.openUrl(docUrl)}>
               {t("common.learnMore")}
             </Button>
           )}

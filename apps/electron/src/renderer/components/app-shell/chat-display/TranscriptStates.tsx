@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils"
 import { AlertTriangle, CircleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ShioriSymbol } from "@/components/icons/ShioriSymbol"
 
 /**
  * Transcript placeholder while messages lazy-load: the shape of a short exchange (bubble,
@@ -103,10 +104,42 @@ export function CompactEmptyState() {
 export function NewChatEmptyState({ compact = false, children }: { compact?: boolean; children?: React.ReactNode }) {
   const { t } = useTranslation()
   return (
-    <div className="pointer-events-none absolute inset-0 flex select-none flex-col items-center justify-center gap-2 px-6 text-center">
-      <h2 className={cn('font-serif text-foreground', compact ? 'text-title' : 'text-display')}>{t('chat.newChatTitle')}</h2>
-      <p className="max-w-md text-label text-secondary">{t('chat.newChatSubtitle')}</p>
-      {children && <div className="pointer-events-auto mt-4 flex justify-center">{children}</div>}
+    <div className={cn(
+      'pointer-events-none absolute inset-0 flex select-none flex-col items-center justify-center px-6 text-center',
+      compact ? 'pb-4' : 'pb-8',
+    )}>
+      {/* Mounted bookmark crest */}
+      <div className="rounded-[28%] border border-default/80 bg-raised/90 p-1.5 shadow-elev-0">
+        <ShioriSymbol className={cn(compact ? 'size-10' : 'size-12')} />
+      </div>
+
+      {/* Classical colophon divider */}
+      <div className="mt-4 flex items-center gap-3 text-tertiary" aria-hidden="true">
+        <span className="h-px w-9 bg-gradient-to-r from-transparent to-border" />
+        <span className="inline-flex items-center gap-1.5 text-[10px] font-medium tracking-[0.26em] uppercase">
+          <span className="font-serif text-[12px] tracking-normal text-accent">栞</span>
+          <span className="text-tertiary/60">·</span>
+          <span>SHIORI</span>
+        </span>
+        <span className="h-px w-9 bg-gradient-to-l from-transparent to-border" />
+      </div>
+
+      <h2 className={cn(
+        'mt-3 font-serif font-medium tracking-[0.06em] text-foreground',
+        compact ? 'text-[24px] leading-[1.35]' : 'text-[31px] leading-[1.32]',
+      )}>
+        {t('chat.newChatTitle')}
+      </h2>
+
+      <p className="mt-2 max-w-[420px] text-[13.5px] leading-[1.7] tracking-[0.02em] text-secondary/85">
+        {t('chat.newChatSubtitle')}
+      </p>
+
+      {children && (
+        <div className={cn('pointer-events-auto flex w-full justify-center', compact ? 'mt-5' : 'mt-7')}>
+          {children}
+        </div>
+      )}
     </div>
   )
 }

@@ -28,6 +28,9 @@ import {
   type DiffViewerSettings,
   type FileOpenHandler,
   RunCommandProvider,
+  InteractiveUiProvider,
+  formatInteractiveUiActionMessage,
+  type InteractiveUiActionPayload,
 } from "@craft-agent/ui"
 import { useFocusZone } from "@/hooks/keyboard"
 import { useTheme } from "@/hooks/useTheme"
@@ -896,6 +899,18 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
     onSendMessage(runCommandMessage(command))
   }, [onSendMessage])
 
+  const interactiveUiContextValue = useMemo(() => {
+    if (!session) return null
+    return {
+      onAction: (payload: InteractiveUiActionPayload) => {
+        const message = formatInteractiveUiActionMessage(payload)
+        if (message) {
+          onSendMessage(message)
+        }
+      },
+    }
+  }, [session, onSendMessage])
+
   // New-chat starter prompts (design spec §7.8): use custom starters from workspace config when
   // defined (capped at 3), otherwise fall back to source-based auto-generation.
   const newChatSuggestions = useMemo(
@@ -1418,6 +1433,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
 
   return (
     <RunCommandProvider value={session ? handleRunCommand : null}>
+    <InteractiveUiProvider value={interactiveUiContextValue}>
     <div ref={zoneRef} className="flex h-full flex-col min-w-0" data-focus-zone="chat">
       {session ? (
         <div className="flex flex-1 flex-col min-h-0 min-w-0 relative">
@@ -2008,6 +2024,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
         )
       )}
     </div>
+    </InteractiveUiProvider>
     </RunCommandProvider>
   )
 })

@@ -7,6 +7,7 @@ import type { LabelConfig } from "@craft-agent/shared/labels"
 import { fuzzyScore } from "@craft-agent/shared/search"
 import { getSessionTitle, getSessionStatus } from "@/utils/session"
 import { buildSessionFamilies, flatRow, flattenFamilies, type SessionFamily, type SessionListRow } from "@/utils/session-tree"
+import { getFolderGroupKey } from "@/utils/session-folder-group"
 import type { SessionMeta } from "@/atoms/sessions"
 import type { ViewConfig } from "@craft-agent/shared/views"
 import type { SessionFilter } from "@/contexts/NavigationContext"
@@ -38,7 +39,7 @@ export interface CollapsedGroupMeta {
   count: number
 }
 
-export type SessionGroupingMode = 'date' | 'status' | 'unread' | 'project'
+export type SessionGroupingMode = 'folder' | 'date' | 'status' | 'unread' | 'project'
 
 export interface UseSessionSearchOptions {
   items: SessionMeta[]
@@ -96,6 +97,7 @@ export interface UseSessionSearchResult {
 // ---------------------------------------------------------------------------
 
 function getCollapseGroupKey(item: SessionMeta, groupingMode?: SessionGroupingMode): string {
+  if (groupingMode === 'folder') return getFolderGroupKey(item.workingDirectory)
   if (groupingMode === 'status') return `status-${getSessionStatus(item)}`
   if (groupingMode === 'unread') return item.hasUnread ? 'unread-yes' : 'unread-no'
   if (groupingMode === 'project') return `project-${(item as { projectId?: string }).projectId ?? '__none__'}`
@@ -110,7 +112,7 @@ function getCollapseGroupKey(item: SessionMeta, groupingMode?: SessionGroupingMo
  * bounded; `displayLimit` still grows on scroll.
  */
 function paginatesPerGroup(groupingMode?: SessionGroupingMode): boolean {
-  return groupingMode === 'status' || groupingMode === 'unread' || groupingMode === 'project'
+  return groupingMode === 'folder' || groupingMode === 'status' || groupingMode === 'unread' || groupingMode === 'project'
 }
 
 /** How many sessions an item stands for (a family view: the family's size) */

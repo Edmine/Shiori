@@ -24,7 +24,7 @@ export const PanelHeaderCenterButton = forwardRef<HTMLButtonElement, PanelHeader
         className={cn(
           "panel-header-btn inline-flex items-center justify-center",
           "size-control shrink-0 rounded-md titlebar-no-drag",
-          "text-secondary hover:text-foreground hover:bg-fill-hover active:bg-fill-pressed",
+          "text-tertiary hover:text-foreground hover:bg-fill-hover active:bg-fill-pressed",
           "data-[state=open]:text-foreground data-[state=open]:bg-fill-hover",
           "transition-[background-color,color] duration-micro ease-out-subtle hover:duration-instant",
           "disabled:pointer-events-none disabled:text-disabled",

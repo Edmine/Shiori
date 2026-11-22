@@ -64,6 +64,8 @@ export interface AppShellContextType {
   activeSessionWorkingDirectory?: string
   /** All label configs (tree) for label menu and badge display */
   labels?: import('@craft-agent/shared/labels').LabelConfig[]
+  /** Workspace projects for header context badges and session assignment */
+  projects?: Array<{ id: string; slug: string; name: string; color?: string }>
   /** Callback when session labels change */
   onSessionLabelsChange?: (sessionId: string, labels: string[]) => void
   /**
@@ -155,6 +157,9 @@ export interface AppShellContextType {
 
   /** Whether the shell is currently in compact/narrow mode */
   isCompactMode?: boolean
+
+  /** Whether this panel sits at the right edge of the window (used to clear Windows titlebar overlay controls) */
+  isAtRightEdge?: boolean
 
   // Session list search state (for ChatDisplay highlighting)
   /** Current search query from session list - used to highlight matches in ChatDisplay */

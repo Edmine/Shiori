@@ -562,15 +562,15 @@ export function buildSubprocessServers(config: BuildConfig): void {
 
   console.log('Building Pi agent server...');
 
-  // Pi agent server uses --target=bun --format=esm because its Pi SDK deps are ESM-only.
-  // --target=node --format=cjs leaves ESM deps as external require() calls that fail at runtime.
+  // Pi agent server uses --target=node --format=esm because its Pi SDK deps are ESM-only
+  // and the bundle must work under both Node/Electron (ELECTRON_RUN_AS_NODE=1) and Bun.
   // koffi is marked external because it's a native N-API module — bun can't inline .node binaries
   // and inlining its JS breaks the native binary resolution paths.
   // Optional: skip if package directory is missing (e.g., not synced to OSS).
   if (existsSync(join(piDir, 'src'))) {
     mkdirSync(join(piDir, 'dist'), { recursive: true });
     execSync(
-      `bun build ${join(piDir, 'src', 'index.ts')} --outdir ${join(piDir, 'dist')} --target bun --format esm --external koffi`,
+      `bun build ${join(piDir, 'src', 'index.ts')} --outdir ${join(piDir, 'dist')} --target node --format esm --external koffi`,
       { cwd: rootDir, stdio: 'inherit', shell: true }
     );
     if (!existsSync(piOut)) {

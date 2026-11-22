@@ -24,45 +24,45 @@
 :root {
   color-scheme: light;
 
-  /* 1 ── theme input (default theme "Craft Agents", light) */
-  --background: #fcfdfe;
-  --foreground: #1a1c1e;
-  --accent: oklch(0.52 0.19 292);
-  --info: oklch(0.76 0.15 72);
-  --success: oklch(0.62 0.15 150);
-  --destructive: oklch(0.58 0.21 27);
+  /* 1 ── theme input (default theme "Shiori", light) */
+  --background: #faf9f6;
+  --foreground: #1c1b18;
+  --accent: oklch(0.49 0.068 206);
+  --info: oklch(0.73 0.13 72);
+  --success: oklch(0.58 0.11 154);
+  --destructive: oklch(0.56 0.17 26);
 
   /* 2 ── derived roles (solver output for the default theme) */
-  --surface-navigator: #f2f3f4;     /* canvas: top bar, sidebar, window background */
-  --surface-paper: #fcfdfe;         /* content: list + transcript card, detail panes */
-  --surface-raised: #fcfdfe;        /* cards on paper: composer, settings groups */
-  --surface-sunken: #f4f5f6;        /* wells: code, tool output, inputs */
-  --surface-floating: #fcfdfe;      /* menus, popovers, palette, toasts, dialogs */
-  --scrim: color-mix(in oklab, #1a1c1e 22%, transparent);
-  --fg-base: #1a1c1e;
-  --text: #1a1c1e;                  /* ≥ 4.5:1 on every surface and state fill */
-  --text-secondary: #424446;        /* target 7:1 worst case */
-  --text-tertiary: #5d5f60;         /* ≥ 4.6:1 worst case: timestamps, hints, placeholders */
-  --text-disabled: #a3a4a6;         /* disabled controls only (WCAG-exempt) */
-  --border-control: #8a8c8d;        /* ≥ 3:1: switch-off track, checkbox, radio */
-  --accent-solid: #6f49ca;          /* primary buttons, selected segmented item */
+  --surface-navigator: #f0efec;     /* canvas: top bar, sidebar, window background */
+  --surface-paper: #faf9f6;         /* content: transcript card, detail panes */
+  --surface-raised: #faf9f6;        /* cards on paper: composer, settings groups */
+  --surface-sunken: #f2f1ee;        /* wells: code, tool output, inputs */
+  --surface-floating: #faf9f6;      /* menus, popovers, palette, toasts, dialogs */
+  --scrim: color-mix(in oklab, #1c1b18 22%, transparent);
+  --fg-base: #1c1b18;
+  --text: #1c1b18;                  /* ≥ 4.5:1 on every surface and state fill */
+  --text-secondary: #43423e;        /* target 7:1 worst case */
+  --text-tertiary: #5d5c59;         /* ≥ 4.6:1 worst case: timestamps, hints, placeholders */
+  --text-disabled: #a3a19e;         /* disabled controls only (WCAG-exempt) */
+  --border-control: #8a8986;        /* ≥ 3:1: switch-off track, checkbox, radio */
+  --accent-solid: #286b73;          /* primary buttons, selected segmented item */
   --on-accent: #ffffff;
-  --accent-text: #6942c3;           /* links, accent labels */
-  --focus-ring: #6f49ca;            /* ≥ 3:1 against every surface */
-  --accent-raw: #6f49ca;
-  --info-raw: #eb9f2c;
-  --info-text: #865600;
+  --accent-text: #1f646c;           /* links, accent labels */
+  --focus-ring: #286b73;            /* ≥ 3:1 against every surface */
+  --accent-raw: #286b73;
+  --info-raw: #da993e;
+  --info-text: #835400;
   --info-solid: #a46a00;
   --on-info: #ffffff;
-  --success-raw: #2e9e52;
-  --success-text: #006f30;
-  --success-solid: #05893e;
+  --success-raw: #3d8d5c;
+  --success-text: #126b3b;
+  --success-solid: #348554;
   --on-success: #ffffff;
-  --destructive-raw: #db2c2b;
-  --destructive-text: #bc0013;
-  --destructive-solid: #db2c2b;
+  --destructive-raw: #c4403b;
+  --destructive-text: #ad2727;
+  --destructive-solid: #c4403b;
   --on-destructive: #ffffff;
-  --diff-text: #1a1c1e;
+  --diff-text: #1c1b18;
   --git-merged: #8250df;           /* GitHub's merged-PR purple: a fixed meaning, not a theme role */
   --surface-input: var(--surface-sunken); /* themes may override via their `input` key */
 
@@ -162,44 +162,44 @@
   color-scheme: dark;
 
   /* 1 ── theme input (default theme, dark) */
-  --background: oklch(0.165 0.004 265);
-  --foreground: oklch(0.945 0.003 265);
-  --accent: oklch(0.70 0.15 292);
-  --info: oklch(0.80 0.14 75);
-  --success: oklch(0.74 0.15 150);
-  --destructive: oklch(0.70 0.18 25);
+  --background: oklch(0.18 0.005 72);
+  --foreground: oklch(0.94 0.006 82);
+  --accent: oklch(0.70 0.068 202);
+  --info: oklch(0.78 0.12 75);
+  --success: oklch(0.72 0.11 154);
+  --destructive: oklch(0.68 0.15 25);
 
   /* 2 ── derived roles */
-  --surface-navigator: #0d0e10;
-  --surface-paper: #151618;
-  --surface-raised: #1a1b1d;
-  --surface-sunken: #111214;
-  --surface-floating: #1f2022;
+  --surface-navigator: #13110f;
+  --surface-paper: #1b1917;
+  --surface-raised: #201e1c;
+  --surface-sunken: #161513;
+  --surface-floating: #252320;
   --scrim: rgb(0 0 0 / 0.55);
-  --fg-base: #ecedef;
-  --text: #ecedef;
-  --text-secondary: #c3c4c6;
-  --text-tertiary: #9e9fa1;
-  --text-disabled: #545557;
-  --border-control: #6a6b6d;
-  --accent-solid: #7e66ca;
+  --fg-base: #edebe7;
+  --text: #edebe7;
+  --text-secondary: #cac7c4;
+  --text-tertiary: #a4a29e;
+  --text-disabled: #595754;
+  --border-control: #6f6d6a;
+  --accent-solid: #3d8085;
   --on-accent: #ffffff;
-  --accent-text: #b29fff;
-  --focus-ring: #a18bf3;
-  --accent-raw: #a18bf3;
-  --info-raw: #f2af48;
-  --info-text: #f2af48;
-  --info-solid: #f2af48;
-  --on-info: #0d0e10;
-  --success-raw: #5ac576;
-  --success-text: #5ac576;
-  --success-solid: #05893e;
+  --accent-text: #79bcc1;
+  --focus-ring: #69abb0;
+  --accent-raw: #69abb0;
+  --info-raw: #e4ac59;
+  --info-text: #e4ac59;
+  --info-solid: #e4ac59;
+  --on-info: #13110f;
+  --success-raw: #69b985;
+  --success-text: #73c38e;
+  --success-solid: #348554;
   --on-success: #ffffff;
-  --destructive-raw: #fa6863;
-  --destructive-text: #ff877f;
-  --destructive-solid: #d24342;
+  --destructive-raw: #e66e68;
+  --destructive-text: #ff8c84;
+  --destructive-solid: #c5504c;
   --on-destructive: #ffffff;
-  --diff-text: #ecedef;
+  --diff-text: #edebe7;
   --git-merged: #a371f7;
 
   /* 3 ── alpha roles */
@@ -293,8 +293,8 @@
    ============================================================================= */
 
 @theme static {
-  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-serif: ui-serif, "New York", "Source Serif 4", "Iowan Old Style", Charter, Georgia, serif;
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "Noto Serif SC", "Source Han Serif SC", "Noto Serif", "Songti SC", "STSong", "New York", "Source Serif 4", "Iowan Old Style", Charter, Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
   /* radii: concentric — child = parent − padding */

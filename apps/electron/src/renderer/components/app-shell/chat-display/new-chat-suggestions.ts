@@ -12,7 +12,7 @@ import { parseMentions } from '@craft-agent/shared/mentions'
 /** Source kinds (prompt about one workspace source) */
 type SourceSuggestionKind = 'email' | 'calendar' | 'chat' | 'tasks' | 'issues' | 'code' | 'docs' | 'source'
 /** Top-up kinds (no source needed) */
-type TopUpSuggestionKind = 'connectEmail' | 'news' | 'files'
+type TopUpSuggestionKind = 'exploreProject' | 'reviewCode' | 'draftPlan'
 /** User-defined starter from workspace config.chatStarters */
 type CustomSuggestionKind = 'custom'
 export type NewChatSuggestionKind = SourceSuggestionKind | TopUpSuggestionKind | CustomSuggestionKind
@@ -58,7 +58,7 @@ const PROVIDER_KINDS: Record<string, SourceSuggestionKind> = {
 }
 
 /** Shown, in order, when the workspace has fewer than three suggestible sources. They work without any source. */
-const TOP_UPS: TopUpSuggestionKind[] = ['connectEmail', 'news', 'files']
+const TOP_UPS: TopUpSuggestionKind[] = ['exploreProject', 'reviewCode', 'draftPlan']
 
 export function newChatSuggestionKind(source: LoadedSource): SourceSuggestionKind {
   const { provider, api } = source.config
@@ -128,8 +128,6 @@ export function pickNewChatSuggestions(sources: readonly LoadedSource[]): NewCha
 
   for (const kind of TOP_UPS) {
     if (picks.length >= NEW_CHAT_SUGGESTION_COUNT) break
-    // Connecting email is only offered while no email source works
-    if (kind === 'connectEmail' && firstByKind.has('email')) continue
     picks.push({ kind })
   }
   return picks
@@ -160,9 +158,20 @@ export function newChatSuggestionLabel(suggestion: NewChatSuggestion, t: Transla
   return t(`chat.suggestions.${suggestion.kind}`, { source: suggestion.sourceName ?? '' })
 }
 
-/** The message sent: a workspace source as a `[source:slug]` mention, or the raw custom prompt. */
+const EDITORIAL_TOP_UPS = new Set<NewChatSuggestionKind>(TOP_UPS)
+
+/** Optional short caption shown under the title on built-in editorial starter cards. */
+export function newChatSuggestionDescription(suggestion: NewChatSuggestion, t: Translate): string | null {
+  if (!EDITORIAL_TOP_UPS.has(suggestion.kind)) return null
+  return t(`chat.suggestions.${suggestion.kind}Desc`, { source: '' })
+}
+
+/** The message sent: a workspace source as a `[source:slug]` mention, an editorial prompt, or the raw custom prompt. */
 export function newChatSuggestionMessage(suggestion: NewChatSuggestion, t: Translate): string {
   if (suggestion.kind === 'custom') return suggestion.customPrompt ?? ''
+  if (EDITORIAL_TOP_UPS.has(suggestion.kind)) {
+    return t(`chat.suggestions.${suggestion.kind}Prompt`, { source: '' })
+  }
   return t(`chat.suggestions.${suggestion.kind}`, {
     source: suggestion.sourceSlug ? `[source:${suggestion.sourceSlug}]` : (suggestion.sourceName ?? ''),
   })

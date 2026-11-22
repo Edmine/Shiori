@@ -80,7 +80,7 @@ export async function rebuildMenu(): Promise<void> {
   const template: Electron.MenuItemConstructorOptions[] = [
     // App menu (macOS only)
     ...(isMac ? [{
-      label: 'Craft Agents',
+      label: 'Shiori',
       submenu: [
         { role: 'about' as const, label: i18n.t('menu.aboutCraftAgents') },
         updateMenuItem,
@@ -237,10 +237,6 @@ export async function rebuildMenu(): Promise<void> {
     {
       label: i18n.t("menu.help"),
       submenu: [
-        {
-          label: i18n.t("menu.helpAndDocs"),
-          click: () => shell.openExternal('https://thecraftagents.com/docs')
-        },
         {
           label: i18n.t("menu.keyboardShortcuts"),
           accelerator: 'CmdOrCtrl+/',

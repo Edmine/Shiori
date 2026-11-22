@@ -46,7 +46,7 @@ export const routes = {
      * @param label - Optional label ID to apply to the new session
      * @param project - Optional project id to bind the new session to
      */
-    newSession: (params?: { input?: string; name?: string; send?: boolean; status?: string; label?: string; project?: string }) =>
+    newSession: (params?: { input?: string; name?: string; send?: boolean; status?: string; label?: string; project?: string; workdir?: string }) =>
       `action/new-session${toQueryString(params ? { ...params, send: params.send ? 'true' : undefined } : undefined)}` as const,
 
     /** Rename a session */

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import { ArrowUp, Square } from 'lucide-react'
+import { ArrowUp, CornerDownLeft, Square } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@craft-agent/ui'
 import { Button } from '@/components/ui/button'
 
 /**
@@ -14,27 +15,73 @@ const SEND_BASE = 'send-btn shrink-0 rounded-full enabled:active:[transform:scal
 interface SendButtonProps {
   /** Processing: renders Stop instead of Send */
   isProcessing: boolean
+  /** Processing with drafted input: exposes non-interrupting steer submit alongside Stop */
+  canSteer?: boolean
   /** Send is not possible (no content, disabled input or tutorial gate) */
   disabled: boolean
   onStop: () => void
 }
 
-export function SendButton({ isProcessing, disabled, onStop }: SendButtonProps) {
+export function SendButton({ isProcessing, canSteer = false, disabled, onStop }: SendButtonProps) {
   const { t } = useTranslation()
 
   if (isProcessing) {
+    if (canSteer) {
+      return (
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="secondary"
+                size="icon"
+                aria-label={t('chat.stopResponse')}
+                data-state="stop"
+                className={SEND_BASE}
+                onClick={onStop}
+              >
+                <Square className="size-2.5 fill-current" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('chat.stopResponse')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                aria-label={t('chat.steerTooltip')}
+                data-state="steer"
+                className="h-[28px] shrink-0 rounded-full px-2.5 gap-1 text-[12px] font-medium enabled:active:[transform:scale(calc(1_-_0.06*var(--motion-scale)))]"
+              >
+                <CornerDownLeft className="size-3.5" />
+                <span>{t('chat.steerButton')}</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('chat.steerTooltip')}</TooltipContent>
+          </Tooltip>
+        </div>
+      )
+    }
+
     return (
-      <Button
-        type="button"
-        variant="primary"
-        size="icon"
-        aria-label={t('chat.stopResponse')}
-        data-state="stop"
-        className={SEND_BASE}
-        onClick={onStop}
-      >
-        <Square className="size-2.5 fill-current" />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="primary"
+            size="icon"
+            aria-label={t('chat.stopResponse')}
+            data-state="stop"
+            className={SEND_BASE}
+            onClick={onStop}
+          >
+            <Square className="size-2.5 fill-current" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{t('chat.stopResponse')}</TooltipContent>
+      </Tooltip>
     )
   }
 

@@ -264,11 +264,11 @@ export function InputContainer({
           focus shown instantly as a tint ring; decision prompts swap in their status ring. */}
       <motion.div
         className={cn(
-          "input-container relative overflow-hidden rounded-xl bg-raised",
+          "input-container relative overflow-hidden rounded-2xl border border-default/80 bg-raised transition-[border-color,box-shadow] duration-fast",
           isFocusedPanel ? "shadow-elev-1" : "shadow-elev-0",
           decisionTone
             ? decisionRingClass(decisionTone)
-            : "focus-within:ring-1 focus-within:ring-focus/55",
+            : "focus-within:border-accent/45 focus-within:ring-2 focus-within:ring-focus/18",
         )}
         style={{
           height: heightMotionValue,

@@ -112,7 +112,7 @@ export function PanelStackContainer({
 
   // Toasts sit inside the content card's first pane, bottom-left — never over the sidebar (spec D10).
   useToastAnchor(
-    isCompact ? null : hasSidebar ? sidebarWidth + PANEL_GAP : PANEL_EDGE_INSET,
+    isCompact ? null : hasSidebar ? sidebarWidth : 0,
     hasNavigator ? navigatorWidth : null,
   )
 
@@ -174,7 +174,7 @@ export function PanelStackContainer({
     cancelFlip([sidebarEl])
     if (nowSidebar === '1') {
       // Opening: the sidebar slides in from the left while the cards glide right.
-      const slide = playSlideX(sidebarEl, -(sidebarWidth + PANEL_GAP), 0, SPRING.panel)
+      const slide = playSlideX(sidebarEl, -sidebarWidth, 0, SPRING.panel)
       if (slide) holdOverflow([slide])
     } else if (animations.length > 0) {
       pendingExitRef.current = true
@@ -187,7 +187,7 @@ export function PanelStackContainer({
     if (!showSidebarOverlay || !pendingExitRef.current) return
     pendingExitRef.current = false
     const el = sidebarElRef.current
-    const slide = el ? playSlideX(el, 0, -(sidebarWidth + PANEL_GAP), SPRING.panel) : null
+    const slide = el ? playSlideX(el, 0, -sidebarWidth, SPRING.panel) : null
     if (!slide) {
       setSidebarExiting(false)
       return
@@ -288,30 +288,24 @@ export function PanelStackContainer({
       style={{
         overflowX: 'auto',
         overflowY: 'hidden',
-        paddingBlock: PANEL_STACK_VERTICAL_OVERFLOW,
-        marginBlock: -PANEL_STACK_VERTICAL_OVERFLOW,
-        marginBottom: -6,
-        paddingBottom: 6,
-        paddingRight: 8,
-        marginRight: -8,
       }}
     >
       <FlipOnChange value={layoutKey} enabled={flipEnabled} getTargets={getFlipTargets} axis="x" onPlay={handleFlipPlayed}>
         <div
           className="flex h-full relative"
-          style={{ gap: PANEL_GAP, flexGrow: 1, minWidth: 0, paddingLeft: hasSidebar ? 0 : PANEL_EDGE_INSET }}
+          style={{ gap: 0, flexGrow: 1, minWidth: 0, paddingLeft: 0 }}
         >
-          {/* === SIDEBAR SLOT === (flush on the navigator canvas — no card) */}
+          {/* === SIDEBAR SLOT === (full-bleed navigator column with crisp hairline seam) */}
           <div
             ref={sidebarElRef}
             data-panel-role="sidebar"
-            className="h-full shrink-0"
+            className={cn("h-full shrink-0", (hasSidebar || showSidebarOverlay) && "border-r border-subtle")}
             style={
               hasSidebar
                 ? { width: sidebarWidth, position: 'relative' }
                 : showSidebarOverlay
                   ? { position: 'absolute', left: 0, top: 0, bottom: 0, width: sidebarWidth, pointerEvents: 'none' }
-                  : { width: 0, marginRight: -PANEL_GAP, overflowX: 'clip', opacity: 0 }
+                  : { width: 0, overflowX: 'clip', opacity: 0 }
             }
           >
             <div className="h-full" style={{ width: sidebarWidth }}>
@@ -329,12 +323,9 @@ export function PanelStackContainer({
             )}
             style={{
               width: hasNavigator ? navigatorWidth : 0,
-              marginRight: hasNavigator ? 0 : -PANEL_GAP,
+              marginRight: 0,
               opacity: hasNavigator ? 1 : 0,
-              borderTopLeftRadius: RADIUS_INNER,
-              borderBottomLeftRadius: !hasSidebar ? RADIUS_EDGE : RADIUS_INNER,
-              borderTopRightRadius: isJoined ? 0 : RADIUS_INNER,
-              borderBottomRightRadius: isJoined ? 0 : RADIUS_INNER,
+              borderRadius: 0,
             }}
           >
             <div className="h-full" style={{ width: navigatorWidth }}>

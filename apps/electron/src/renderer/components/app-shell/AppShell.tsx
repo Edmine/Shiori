@@ -39,9 +39,12 @@ import {
 import { SourceAvatar } from "@/components/ui/source-avatar"
 import { TopBar } from "./TopBar"
 import { SquarePenRounded } from "../icons/SquarePenRounded"
+import { PanelLeftRounded } from "../icons/PanelLeftRounded"
+import { AppMenu } from "../AppMenu"
+import { PanelHeaderCenterButton } from "@/components/ui/PanelHeaderCenterButton"
 import { McpIcon } from "../icons/McpIcon"
 import { cn } from "@/lib/utils"
-import { isMac } from "@/lib/platform"
+import { getPathBasename, isMac } from "@/lib/platform"
 import { Button } from "@/components/ui/button"
 import { HeaderIconButton } from "@/components/ui/HeaderIconButton"
 import { resolveInheritedFilterParams, type FilterMode } from "./inherited-filter-params"
@@ -73,7 +76,8 @@ import { PanelStackContainer } from "./PanelStackContainer"
 import { CompactSessionListFilter } from "./CompactSessionListFilter"
 import type { ChatDisplayHandle } from "./ChatDisplay"
 import type { SidebarItem as SidebarNavItem } from "./LeftSidebar"
-import { SidebarPane } from "./SidebarPane"
+import { ShioriSidebar, type ShioriActiveRadarItem, type ShioriSidebarSection } from "./ShioriSidebar"
+import { ShioriSettingsShell, type ShioriSettingsSection } from "./ShioriSettingsShell"
 import { SessionFilterMenu } from "./SessionFilterMenu"
 import { ShellResizeHandle } from "./ShellResizeHandle"
 import { useSession } from "@/hooks/useSession"
@@ -151,6 +155,7 @@ import {
 import { hasOpenOverlay } from "@/lib/overlay-detection"
 import { clearSourceIconCaches } from "@/lib/icon-cache"
 import { dispatchFocusInputEvent } from "./input/focus-input-events"
+import { ShioriCommandPalette } from "./ShioriCommandPalette"
 
 /**
  * AppShellProps - Minimal props interface for AppShell component
@@ -236,12 +241,17 @@ function AppShellContent({
 
   // Get hotkey labels from centralized action registry
   const newChatHotkey = useActionLabel('app.newChat').hotkey
+  const commandPaletteHotkey = useActionLabel('app.commandPalette').hotkey
+  const [commandPaletteOpen, setCommandPaletteOpen] = React.useState(false)
+  const [commandPaletteOpenedWithKeyboard, setCommandPaletteOpenedWithKeyboard] = React.useState(false)
 
   const [isSidebarVisible, setIsSidebarVisible] = React.useState(() => {
     return storage.get(storage.KEYS.sidebarVisible, !defaultCollapsed)
   })
   const [sidebarWidth, setSidebarWidth] = React.useState(() => {
-    return storage.get(storage.KEYS.sidebarWidth, 232)
+    const stored = storage.get<number>(storage.KEYS.sidebarWidth, 280)
+    if (stored === 232) return 280
+    return Math.min(Math.max(stored, 240), 420)
   })
   // Session list width in pixels (min 240, max 480)
   const [sessionListWidth, setSessionListWidth] = React.useState(() => {
@@ -523,7 +533,7 @@ function AppShellContent({
 
   const chatGroupingMode: ChatGroupingMode = isStateSubView
     ? 'date'
-    : (viewFiltersMap[sessionFilterKey ?? '']?.groupingMode ?? 'date')
+    : (viewFiltersMap[sessionFilterKey ?? '']?.groupingMode ?? 'folder')
 
   const setChatGroupingMode = useCallback((mode: ChatGroupingMode) => {
     setViewFiltersMap(prev => {
@@ -575,6 +585,12 @@ function AppShellContent({
 
   // Cmd+F to activate search
   useAction('app.search', () => setSearchActive(true))
+
+  // Cmd/Ctrl+K to toggle global command palette
+  useAction('app.commandPalette', () => {
+    setCommandPaletteOpenedWithKeyboard(true)
+    setCommandPaletteOpen((open) => !open)
+  })
 
   // Unified sidebar keyboard navigation state
   // Load expanded folders from localStorage (default: all collapsed)
@@ -882,8 +898,20 @@ function AppShellContent({
   // Actions are defined in @/actions/definitions.ts
 
   // Zone navigation - explicit keyboard intent, always move DOM focus
-  useAction('nav.focusSidebar', () => focusZone('sidebar', { intent: 'keyboard' }))
-  useAction('nav.focusNavigator', () => focusZone('navigator', { intent: 'keyboard' }))
+  useAction('nav.focusSidebar', () => {
+    if (!isAutoCompact) {
+      if (isSidebarAndNavigatorHidden) setIsSidebarAndNavigatorHidden(false)
+      if (!isSidebarVisible) setIsSidebarVisible(true)
+    }
+    focusZone(isSessionsNavigation(navState) ? 'navigator' : 'sidebar', { intent: 'keyboard' })
+  })
+  useAction('nav.focusNavigator', () => {
+    if (!isAutoCompact) {
+      if (isSidebarAndNavigatorHidden) setIsSidebarAndNavigatorHidden(false)
+      if (!isSidebarVisible) setIsSidebarVisible(true)
+    }
+    focusZone('navigator', { intent: 'keyboard' })
+  })
   useAction('nav.focusChat', () => focusZone('chat', { intent: 'keyboard' }))
 
   // Tab navigation between zones
@@ -1067,7 +1095,7 @@ function AppShellContent({
 
     const handleMouseMove = (e: MouseEvent) => {
       if (isResizing === 'sidebar') {
-        const newWidth = Math.min(Math.max(e.clientX, 180), 320)
+        const newWidth = Math.min(Math.max(e.clientX, 240), 420)
         setSidebarWidth(newWidth)
         if (resizeHandleRef.current) {
           const rect = resizeHandleRef.current.getBoundingClientRect()
@@ -1431,6 +1459,7 @@ function AppShellContent({
     chatStarters,
     activeSessionWorkingDirectory,
     labels: displayLabelConfigs,
+    projects: projectMenuOptions,
     onSessionLabelsChange: handleSessionLabelsChange,
     enabledModes,
     sessionStatuses: effectiveSessionStatuses,
@@ -1450,7 +1479,7 @@ function AppShellContent({
     automationTestResults,
     getAutomationHistory,
     onReplayAutomation: handleReplayAutomation,
-  }), [contextValue, handleDeleteSession, sources, skills, chatStarters, activeSessionWorkingDirectory, displayLabelConfigs, handleSessionLabelsChange, enabledModes, effectiveSessionStatuses, handleSessionSourcesChange, handleJumpToTaskSessions, isAutoCompact, searchActive, searchQuery, handleChatMatchInfoChange, handleTestAutomation, handleToggleAutomation, handleDuplicateAutomation, handleDeleteAutomation, automationTestResults, getAutomationHistory, handleReplayAutomation])
+  }), [contextValue, handleDeleteSession, sources, skills, chatStarters, activeSessionWorkingDirectory, displayLabelConfigs, projectMenuOptions, handleSessionLabelsChange, enabledModes, effectiveSessionStatuses, handleSessionSourcesChange, handleJumpToTaskSessions, isAutoCompact, searchActive, searchQuery, handleChatMatchInfoChange, handleTestAutomation, handleToggleAutomation, handleDuplicateAutomation, handleDeleteAutomation, automationTestResults, getAutomationHistory, handleReplayAutomation])
 
   // Persist expanded folders to localStorage (workspace-scoped)
   React.useEffect(() => {
@@ -1587,6 +1616,23 @@ function AppShellContent({
   const handleSettingsClick = useCallback((subpage?: SettingsSubpage) => {
     navigate(routes.view.settings(subpage))
   }, [])
+
+  // Remember the last active chat session so exiting standalone Settings returns right back to it
+  const lastChatSessionIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (isSessionsNavigation(navState) && navState.details?.type === 'session') {
+      lastChatSessionIdRef.current = navState.details.sessionId
+    }
+  }, [navState])
+
+  const handleBackFromSettings = useCallback(() => {
+    const previousSessionId = lastChatSessionIdRef.current
+    if (previousSessionId && workspaceSessionMetas.some((meta) => meta.id === previousSessionId)) {
+      navigate(routes.view.allSessions(previousSessionId))
+      return
+    }
+    handleAllSessionsClick()
+  }, [workspaceSessionMetas, handleAllSessionsClick])
 
   // Handler for What's New overlay
   const handleWhatsNewClick = useCallback(async () => {
@@ -1776,6 +1822,16 @@ function AppShellContent({
     )
 
     // Focus the chat input after navigation completes
+    setTimeout(() => focusZone('chat', { intent: 'programmatic' }), 50)
+  }, [activeWorkspace, focusZone, navigate, resolveInheritedNewSessionParams])
+
+  // Create a new chat bound directly to a specific project working directory
+  const handleNewChatInFolder = useCallback((workingDirectory: string) => {
+    if (!activeWorkspace) return
+    setSearchActive(false)
+    setSearchQuery('')
+    const inherited = resolveInheritedNewSessionParams()
+    navigate(routes.action.newSession({ ...(inherited ?? {}), workdir: workingDirectory }))
     setTimeout(() => focusZone('chat', { intent: 'programmatic' }), 50)
   }, [activeWorkspace, focusZone, navigate, resolveInheritedNewSessionParams])
 
@@ -2362,9 +2418,58 @@ function AppShellContent({
     },
   ]
 
+  const showDesktopCollapsedLeadingAction = !isAutoCompact && (effectiveSidebarAndNavigatorHidden || !isSidebarVisible)
+  const resolvedAppShellContextValue = React.useMemo<AppShellContextType>(() => {
+    if (!showDesktopCollapsedLeadingAction) return appShellContextValue
+    return {
+      ...appShellContextValue,
+      leadingAction: (
+        <div className="flex items-center gap-0.5 mr-1">
+          <PanelHeaderCenterButton
+            icon={<PanelLeftRounded className="size-4" />}
+            tooltip={t("menu.toggleSidebar")}
+            onClick={handleToggleSidebarFromPointer}
+          />
+          <PanelHeaderCenterButton
+            icon={<SquarePenRounded className="size-4 text-accent" />}
+            tooltip={newChatHotkey ? `${t("session.newSession")} (${newChatHotkey})` : t("session.newSession")}
+            onClick={() => handleNewChat(false)}
+          />
+          <AppMenu
+            compact
+            onNewChat={() => handleNewChat(false)}
+            onNewWindow={() => window.electronAPI.menuNewWindow()}
+            onAddBrowserPanel={() => { void handleNewBrowserWindow() }}
+            onOpenSettings={onOpenSettings}
+            onOpenSettingsSubpage={handleSettingsClick}
+            onOpenKeyboardShortcuts={onOpenKeyboardShortcuts}
+            onOpenStoredUserPreferences={onOpenStoredUserPreferences}
+            onToggleSidebar={handleToggleSidebarFromPointer}
+            onToggleFocusMode={handleToggleFocusModeFromPointer}
+          />
+          <span className="mx-1 h-3.5 w-px bg-border/80 shrink-0" aria-hidden="true" />
+        </div>
+      ),
+    }
+  }, [
+    showDesktopCollapsedLeadingAction,
+    appShellContextValue,
+    t,
+    handleToggleSidebarFromPointer,
+    newChatHotkey,
+    handleNewChat,
+    handleNewBrowserWindow,
+    onOpenSettings,
+    handleSettingsClick,
+    onOpenKeyboardShortcuts,
+    onOpenStoredUserPreferences,
+    handleToggleFocusModeFromPointer,
+  ])
+
   return (
-    <AppShellProvider value={appShellContextValue}>
-        {/* === TOP BAR === */}
+    <AppShellProvider value={resolvedAppShellContextValue}>
+        {/* === TOP BAR (compact/narrow viewport only; desktop uses full-bleed split headers) === */}
+        {isAutoCompact && (
         <TopBar
           workspaces={workspaces}
           activeWorkspaceId={activeWorkspaceId}
@@ -2388,7 +2493,9 @@ function AppShellContent({
           onAddSessionPanel={() => handleNewChat(true)}
           onAddBrowserPanel={() => { void handleNewBrowserWindow() }}
           isCompact={isAutoCompact}
+          showWorkspaceSwitcher={isAutoCompact || effectiveSidebarAndNavigatorHidden || !isSidebarVisible}
         />
+        )}
 
       {/* === OUTER LAYOUT: Unified Panel Stack | Right Sidebar === */}
       <div
@@ -2396,216 +2503,180 @@ function AppShellContent({
         className="flex items-stretch relative"
         style={{
           height: '100%',
-          paddingRight: isAutoCompact ? 0 : PANEL_EDGE_INSET,
-          paddingBottom: isAutoCompact ? 0 : PANEL_EDGE_INSET,
+          paddingRight: 0,
+          paddingBottom: 0,
           paddingLeft: 0,
-          gap: PANEL_GAP,
+          gap: isAutoCompact ? PANEL_GAP : 0,
         }}
       >
-        <PanelStackContainer
-          sidebarSlot={
-            <SidebarPane
-              paneRef={sidebarRef}
-              width={sidebarWidth}
-              focused={sidebarFocused}
-              onKeyDown={handleSidebarKeyDown}
-              links={sidebarLinks}
-              footerLinks={sidebarFooterLinks}
-              getItemProps={getSidebarItemProps}
-              focusedItemId={focusedSidebarItemId}
-              onNewSession={(openInNewWindow) => handleNewChat(openInNewWindow)}
-              newSessionLabel={t("session.newSession")}
-              newSessionHotkey={newChatHotkey}
-            />
-          }
-          sidebarWidth={effectiveSidebarAndNavigatorHidden ? 0 : (isSidebarVisible ? sidebarWidth : 0)}
-          navigatorSlot={
-            <div
-              style={{ width: isAutoCompact ? '100%' : sessionListWidth }}
-              className="h-full flex flex-col min-w-0 relative z-panel"
-            >
-            <PanelHeader
-              title={isSidebarVisible ? listTitle : undefined}
-              compensateForStoplight={!isSidebarVisible}
-              badge={automationFilter?.automationType === 'scheduled' ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="text-muted-foreground/50 cursor-default flex items-center titlebar-no-drag">
-                      <Info className="h-3 w-3" />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-[220px]">
-                    Scheduling requires your machine to be running. It can be locked, but must be powered on.
-                  </TooltipContent>
-                </Tooltip>
-              ) : undefined}
-              actions={
-                <>
-                  {/* List ⇄ Board view switch (sessions mode, desktop widths only).
-                      In board view the navigator is collapsed, so the board hosts its own copy. */}
-                  {!isAutoCompact && isSessionsNavigation(navState) && (
-                    <BoardListToggle
-                      value="list"
-                      onChange={view => {
-                        if (view === 'board') navigate(routes.view.board())
-                      }}
-                    />
-                  )}
-                  {/* Filter dropdown - available in ALL chat views.
-                      Shows user-added filters (removable) and pinned filters (non-removable, derived from route).
-                      Pinned filters: state views pin a status, label views pin a label, flagged pins the flag. */}
-                  {isSessionsNavigation(navState) && (
-                    isAutoCompact ? (
-                      <CompactSessionListFilter
-                        listFilter={listFilter}
-                        setListFilter={setListFilter}
-                        labelFilter={labelFilter}
-                        setLabelFilter={setLabelFilter}
-                        pinnedFilters={pinnedFilters}
-                        effectiveSessionStatuses={effectiveSessionStatuses}
-                        displayLabelConfigs={displayLabelConfigs}
-                        labelConfigs={labelConfigs}
-                        chatGroupingMode={chatGroupingMode}
-                        setChatGroupingMode={setChatGroupingMode}
-                        isStateSubView={isStateSubView}
-                        onOpenSearch={() => setSearchActive(true)}
-                      />
-                    ) : (
-                    <SessionFilterMenu
-                      key={activeWorkspaceId ?? undefined}
-                      listFilter={listFilter}
-                      setListFilter={setListFilter}
-                      labelFilter={labelFilter}
-                      setLabelFilter={setLabelFilter}
-                      projectFilter={projectFilter}
-                      setProjectFilter={setProjectFilter}
-                      pinnedFilters={pinnedFilters}
-                      effectiveSessionStatuses={effectiveSessionStatuses}
-                      labelConfigs={labelConfigs}
-                      displayLabelConfigs={displayLabelConfigs}
-                      projectMenuOptions={projectMenuOptions}
-                      isStateSubView={isStateSubView}
-                      chatGroupingMode={chatGroupingMode}
-                      setChatGroupingMode={setChatGroupingMode}
-                      onOpenSearch={() => setSearchActive(true)}
-                    />
-                    )
-                  )}
-                  {/* Add Source button (only for sources mode) - uses filter-aware edit config */}
-                  {isSourcesNavigation(navState) && activeWorkspace && (
-                    <EditPopover
-                      trigger={
-                        <HeaderIconButton
-                          icon={<Plus className="h-4 w-4" />}
-                          tooltip={t("sidebarMenu.addSource")}
-                          data-tutorial="add-source-button"
-                        />
-                      }
-                      {...getEditConfig(
-                        sourceFilter?.kind === 'type' ? `add-source-${sourceFilter.sourceType}` as EditContextKey : 'add-source',
-                        activeWorkspace.rootPath
-                      )}
-                    />
-                  )}
-                  {/* Add Skill button (only for skills mode) */}
-                  {isSkillsNavigation(navState) && activeWorkspace && (
-                    <EditPopover
-                      trigger={
-                        <HeaderIconButton
-                          icon={<Plus className="h-4 w-4" />}
-                          tooltip={t("sidebarMenu.addSkill")}
-                          data-tutorial="add-skill-button"
-                        />
-                      }
-                      {...getEditConfig('add-skill', activeWorkspace.rootPath)}
-                    />
-                  )}
-                  {/* Add Automation button (only for automations mode) */}
-                  {isAutomationsNavigation(navState) && activeWorkspace && (
-                    <EditPopover
-                      trigger={
-                        <HeaderIconButton
-                          icon={<Plus className="h-4 w-4" />}
-                          tooltip={t("sidebarMenu.addAutomation")}
-                        />
-                      }
-                      {...getEditConfig('automation-config', activeWorkspace.rootPath)}
-                    />
-                  )}
-                  {/* Add Project button (only for projects mode) */}
-                  {isProjectsNavigation(navState) && activeWorkspace && (
+        {(() => {
+          const isSettingsShellActive =
+            !isAutoCompact &&
+            (isSettingsNavigation(navState) ||
+              isSourcesNavigation(navState) ||
+              isSkillsNavigation(navState) ||
+              isAutomationsNavigation(navState))
+
+          const activeSidebarSection: ShioriSidebarSection =
+            isSourcesNavigation(navState) ? 'sources'
+              : isSkillsNavigation(navState) ? 'skills'
+                : isProjectsNavigation(navState) ? 'projects'
+                  : isAutomationsNavigation(navState) ? 'automations'
+                    : isSettingsNavigation(navState) ? 'settings'
+                      : isBoardView ? 'board'
+                        : isPagesView ? 'pages'
+                          : 'sessions'
+
+          const isFilteredSessionSubView =
+            isSessionsNavigation(navState) &&
+            !isBoardView &&
+            sessionFilter?.kind !== 'allSessions'
+
+          const showSessionListInDesktopSidebar =
+            isSessionsNavigation(navState) || isBoardView || isPagesView
+
+          const sidebarHeaderActions = (
+            <>
+              {isSessionsNavigation(navState) && !isBoardView && (
+                isAutoCompact ? (
+                  <CompactSessionListFilter
+                    listFilter={listFilter}
+                    setListFilter={setListFilter}
+                    labelFilter={labelFilter}
+                    setLabelFilter={setLabelFilter}
+                    pinnedFilters={pinnedFilters}
+                    effectiveSessionStatuses={effectiveSessionStatuses}
+                    displayLabelConfigs={displayLabelConfigs}
+                    labelConfigs={labelConfigs}
+                    chatGroupingMode={chatGroupingMode}
+                    setChatGroupingMode={setChatGroupingMode}
+                    isStateSubView={isStateSubView}
+                    onOpenSearch={() => setSearchActive(true)}
+                  />
+                ) : (
+                  <SessionFilterMenu
+                    key={activeWorkspaceId ?? undefined}
+                    listFilter={listFilter}
+                    setListFilter={setListFilter}
+                    labelFilter={labelFilter}
+                    setLabelFilter={setLabelFilter}
+                    projectFilter={projectFilter}
+                    setProjectFilter={setProjectFilter}
+                    pinnedFilters={pinnedFilters}
+                    effectiveSessionStatuses={effectiveSessionStatuses}
+                    labelConfigs={labelConfigs}
+                    displayLabelConfigs={displayLabelConfigs}
+                    projectMenuOptions={projectMenuOptions}
+                    isStateSubView={isStateSubView}
+                    chatGroupingMode={chatGroupingMode}
+                    setChatGroupingMode={setChatGroupingMode}
+                    onOpenSearch={() => setSearchActive(true)}
+                  />
+                )
+              )}
+              {isSourcesNavigation(navState) && activeWorkspace && (
+                <EditPopover
+                  trigger={
                     <HeaderIconButton
                       icon={<Plus className="h-4 w-4" />}
-                      tooltip={t("sidebarMenu.addProject")}
-                      onClick={openAddProject}
+                      tooltip={t("sidebarMenu.addSource")}
+                      data-tutorial="add-source-button"
                     />
+                  }
+                  {...getEditConfig(
+                    sourceFilter?.kind === 'type' ? `add-source-${sourceFilter.sourceType}` as EditContextKey : 'add-source',
+                    activeWorkspace.rootPath
                   )}
-                </>
-              }
-            />
-            {/* Content: SessionList, SourcesListPanel, or SettingsNavigator based on navigation state */}
-            {isSourcesNavigation(navState) && (
-              /* Sources List - filtered by type if sourceFilter is active */
-              <SourcesListPanel
-                sources={sources}
-                sourceFilter={sourceFilter}
-                workspaceRootPath={activeWorkspace?.rootPath}
-                onDeleteSource={handleDeleteSource}
-                onSourceClick={handleSourceSelect}
-                selectedSourceSlug={isSourcesNavigation(navState) && navState.details ? navState.details.sourceSlug : null}
-                localMcpEnabled={localMcpEnabled}
-              />
-            )}
-            {isSkillsNavigation(navState) && activeWorkspaceId && (
-              /* Skills List */
-              <SkillsListPanel
-                skills={skills}
-                workspaceId={activeWorkspaceId}
-                workspaceRootPath={activeWorkspace?.rootPath}
-                onSkillClick={handleSkillSelect}
-                onDeleteSkill={handleDeleteSkill}
-                selectedSkillSlug={isSkillsNavigation(navState) && navState.details?.type === 'skill' ? navState.details.skillSlug : null}
-              />
-            )}
-            {isProjectsNavigation(navState) && activeWorkspaceId && (
-              /* Projects List */
-              <ProjectsListPanel
-                projects={projects}
-                workspaceId={activeWorkspaceId}
-                onProjectClick={(slug) => navigate(routes.view.projects(slug))}
-                onAddProject={openAddProject}
-                onJumpToSessions={handleJumpToProjectSessions}
-                selectedProjectSlug={isProjectsNavigation(navState) ? navState.details?.projectSlug ?? null : null}
-              />
-            )}
-            {isAutomationsNavigation(navState) && (
-              /* Automations List - filtered by type if automationFilter is active */
-              <AutomationsListPanel
-                automations={automations}
-                automationFilter={automationFilter ? { kind: AUTOMATION_TYPE_TO_FILTER_KIND[automationFilter.automationType] ?? 'all' } : undefined}
-                onAutomationClick={handleAutomationSelect}
-                onTestAutomation={handleTestAutomation}
-                onToggleAutomation={handleToggleAutomation}
-                onDuplicateAutomation={handleDuplicateAutomation}
-                onDeleteAutomation={handleDeleteAutomation}
-                selectedAutomationId={isAutomationsNavigation(navState) && navState.details ? navState.details.automationId : null}
-                workspaceRootPath={activeWorkspace?.rootPath}
-              />
-            )}
-            {isSettingsNavigation(navState) && (
-              /* Settings Navigator */
-              <SettingsNavigator
-                selectedSubpage={navState.subpage}
-                onSelectSubpage={(subpage) => handleSettingsClick(subpage)}
-              />
-            )}
-            {isSessionsNavigation(navState) && (
-              /* Sessions List */
-              <>
-                {/* SessionList: Scrollable list of session cards */}
-                {/* Key on sidebarMode forces full remount when switching views, skipping animations */}
+                />
+              )}
+              {isSkillsNavigation(navState) && activeWorkspace && (
+                <EditPopover
+                  trigger={
+                    <HeaderIconButton
+                      icon={<Plus className="h-4 w-4" />}
+                      tooltip={t("sidebarMenu.addSkill")}
+                      data-tutorial="add-skill-button"
+                    />
+                  }
+                  {...getEditConfig('add-skill', activeWorkspace.rootPath)}
+                />
+              )}
+              {isAutomationsNavigation(navState) && activeWorkspace && (
+                <EditPopover
+                  trigger={
+                    <HeaderIconButton
+                      icon={<Plus className="h-4 w-4" />}
+                      tooltip={t("sidebarMenu.addAutomation")}
+                    />
+                  }
+                  {...getEditConfig('automation-config', activeWorkspace.rootPath)}
+                />
+              )}
+              {isProjectsNavigation(navState) && activeWorkspace && (
+                <HeaderIconButton
+                  icon={<Plus className="h-4 w-4" />}
+                  tooltip={t("sidebarMenu.addProject")}
+                  onClick={openAddProject}
+                />
+              )}
+            </>
+          )
+
+          const activeListContent = (
+            <>
+              {isSourcesNavigation(navState) && (
+                <SourcesListPanel
+                  sources={sources}
+                  sourceFilter={sourceFilter}
+                  workspaceRootPath={activeWorkspace?.rootPath}
+                  onDeleteSource={handleDeleteSource}
+                  onSourceClick={handleSourceSelect}
+                  selectedSourceSlug={isSourcesNavigation(navState) && navState.details ? navState.details.sourceSlug : null}
+                  localMcpEnabled={localMcpEnabled}
+                />
+              )}
+              {isSkillsNavigation(navState) && activeWorkspaceId && (
+                <SkillsListPanel
+                  skills={skills}
+                  workspaceId={activeWorkspaceId}
+                  workspaceRootPath={activeWorkspace?.rootPath}
+                  onSkillClick={handleSkillSelect}
+                  onDeleteSkill={handleDeleteSkill}
+                  selectedSkillSlug={isSkillsNavigation(navState) && navState.details?.type === 'skill' ? navState.details.skillSlug : null}
+                />
+              )}
+              {isProjectsNavigation(navState) && activeWorkspaceId && (
+                <ProjectsListPanel
+                  projects={projects}
+                  workspaceId={activeWorkspaceId}
+                  onProjectClick={(slug) => navigate(routes.view.projects(slug))}
+                  onAddProject={openAddProject}
+                  onJumpToSessions={handleJumpToProjectSessions}
+                  selectedProjectSlug={isProjectsNavigation(navState) ? navState.details?.projectSlug ?? null : null}
+                />
+              )}
+              {isAutomationsNavigation(navState) && (
+                <AutomationsListPanel
+                  automations={automations}
+                  automationFilter={automationFilter ? { kind: AUTOMATION_TYPE_TO_FILTER_KIND[automationFilter.automationType] ?? 'all' } : undefined}
+                  onAutomationClick={handleAutomationSelect}
+                  onTestAutomation={handleTestAutomation}
+                  onToggleAutomation={handleToggleAutomation}
+                  onDuplicateAutomation={handleDuplicateAutomation}
+                  onDeleteAutomation={handleDeleteAutomation}
+                  selectedAutomationId={isAutomationsNavigation(navState) && navState.details ? navState.details.automationId : null}
+                  workspaceRootPath={activeWorkspace?.rootPath}
+                />
+              )}
+              {isSettingsNavigation(navState) && (
+                <SettingsNavigator
+                  selectedSubpage={navState.subpage}
+                  onSelectSubpage={(subpage) => handleSettingsClick(subpage)}
+                />
+              )}
+              {(isAutoCompact ? isSessionsNavigation(navState) : showSessionListInDesktopSidebar) && (
                 <SessionList
-                  key={sessionFilter?.kind}
+                  key={sessionFilter?.kind ?? 'allSessions'}
                   items={searchActive ? workspaceSessionMetas : filteredSessionMetas}
                   onDelete={handleDeleteSession}
                   onFlag={onFlagSession}
@@ -2654,47 +2725,194 @@ function AppShellContent({
                   focusedSessionId={panelCount === 0 ? null : panelCount > 1 ? focusedSessionId : undefined}
                   onNavigateToSession={panelCount > 1 ? navigateToSessionInPanel : undefined}
                   hasPendingPrompt={hasPendingPrompt}
+                  onNewSessionInFolder={handleNewChatInFolder}
                   activeChatMatchInfo={chatMatchInfo}
                 />
-              </>
-            )}
+              )}
+            </>
+          )
+
+          if (isSettingsShellActive) {
+            const activeSettingsSection: ShioriSettingsSection =
+              isSourcesNavigation(navState) ? 'sources'
+                : isSkillsNavigation(navState) ? 'skills'
+                  : isAutomationsNavigation(navState) ? 'automations'
+                    : 'settings'
+
+            return (
+              <ShioriSettingsShell
+                navState={navState}
+                activeSection={activeSettingsSection}
+                selectedSubpage={isSettingsNavigation(navState) ? navState.subpage : null}
+                listTitle={listTitle}
+                listHeaderActions={sidebarHeaderActions}
+                listContent={activeSettingsSection === 'settings' ? undefined : activeListContent}
+                counts={{
+                  sources: sources.length,
+                  skills: skills.length,
+                  automations: automations.length,
+                }}
+                onBackToApp={handleBackFromSettings}
+                onSelectSettingsSubpage={(subpage) => handleSettingsClick(subpage)}
+                onSelectSources={handleSourcesClick}
+                onSelectSkills={handleSkillsClick}
+                onSelectAutomations={handleAutomationsClick}
+              />
+            )
+          }
+
+          return (
+        <PanelStackContainer
+          sidebarSlot={
+            !isAutoCompact ? (
+            <ShioriSidebar
+              paneRef={sidebarRef}
+              width={sidebarWidth}
+              workspaces={workspaces}
+              activeWorkspaceId={activeWorkspaceId}
+              onSelectWorkspace={onSelectWorkspace}
+              workspaceUnreadMap={workspaceUnreadMap}
+              onWorkspaceCreated={() => onRefreshWorkspaces?.()}
+              onWorkspaceRemoved={() => onRefreshWorkspaces?.()}
+              onNewSession={(openInNewWindow) => handleNewChat(openInNewWindow)}
+              newSessionLabel={t("session.newSession")}
+              newSessionHotkey={newChatHotkey ?? undefined}
+              onNewWindow={() => window.electronAPI.menuNewWindow()}
+              onAddBrowserPanel={() => { void handleNewBrowserWindow() }}
+              onOpenSettingsSubpage={handleSettingsClick}
+              onOpenKeyboardShortcuts={onOpenKeyboardShortcuts}
+              onOpenStoredUserPreferences={onOpenStoredUserPreferences}
+              onToggleSidebar={handleToggleSidebarFromPointer}
+              onToggleFocusMode={handleToggleFocusModeFromPointer}
+              activeSection={activeSidebarSection}
+              listTitle={listTitle}
+              isFilteredSessionSubView={isFilteredSessionSubView}
+              searchActive={searchActive}
+              onToggleSearch={() => {
+                setSearchActive((prev) => {
+                  if (prev) setSearchQuery('')
+                  return !prev
+                })
+              }}
+              projects={projectMenuOptions}
+              projectFilter={projectFilter}
+              onSelectProjectFilter={(projectId) => {
+                if (!isSessionsNavigation(navState) || isBoardView) {
+                  if (projectId) {
+                    handleJumpToProjectSessions(projectId)
+                  } else {
+                    setProjectFilter(new Map())
+                    navigate(routes.view.allSessions())
+                  }
+                  return
+                }
+                setProjectFilter(projectId ? new Map([[projectId, 'include']]) : new Map())
+              }}
+              activeRadarItems={(() => {
+                const selectedId = focusedSessionId ?? session.selected
+                const radar: ShioriActiveRadarItem[] = []
+                for (const meta of workspaceSessionMetas) {
+                  const waiting = hasPendingPrompt(meta.id)
+                  const working = Boolean(meta.isProcessing)
+                  if (!waiting && !working) continue
+                  radar.push({
+                    id: meta.id,
+                    title: getSessionTitle(meta),
+                    state: waiting ? 'needs-you' : 'working',
+                    isSelected: meta.id === selectedId,
+                  })
+                }
+                radar.sort((a, b) => {
+                  if (a.state !== b.state) return a.state === 'needs-you' ? -1 : 1
+                  return 0
+                })
+                return radar
+              })()}
+              onSelectRadarSession={(targetSessionId) => {
+                if (panelCount > 1) {
+                  navigateToSessionInPanel(targetSessionId)
+                } else {
+                  navigateToSession(targetSessionId)
+                }
+              }}
+              groupingMode={chatGroupingMode}
+              canToggleGrouping={isSessionsNavigation(navState) && !isBoardView && !isStateSubView}
+              onToggleQuickGrouping={() => {
+                setChatGroupingMode(chatGroupingMode === 'folder' ? 'date' : 'folder')
+              }}
+              headerActions={sidebarHeaderActions}
+              onAllSessions={handleAllSessionsClick}
+              onSettings={() => handleSettingsClick()}
+              onOpenCommandPalette={() => {
+                setCommandPaletteOpenedWithKeyboard(false)
+                setCommandPaletteOpen(true)
+              }}
+              commandPaletteHotkey={commandPaletteHotkey ?? undefined}
+            >
+              {activeListContent}
+            </ShioriSidebar>
+            ) : null
+          }
+          sidebarWidth={effectiveSidebarAndNavigatorHidden ? 0 : (isSidebarVisible ? sidebarWidth : 0)}
+          navigatorSlot={
+            isAutoCompact ? (
+            <div
+              style={{ width: '100%' }}
+              className="h-full flex flex-col min-w-0 relative z-panel"
+            >
+            <PanelHeader
+              title={isSidebarVisible ? listTitle : undefined}
+              compensateForStoplight={!isSidebarVisible}
+              badge={automationFilter?.automationType === 'scheduled' ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-muted-foreground/50 cursor-default flex items-center titlebar-no-drag">
+                      <Info className="h-3 w-3" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-[220px]">
+                    Scheduling requires your machine to be running. It can be locked, but must be powered on.
+                  </TooltipContent>
+                </Tooltip>
+              ) : undefined}
+              actions={sidebarHeaderActions}
+            />
+            {activeListContent}
             {/* Mobile/compact-only FAB for starting a new chat — only on the
                 session list itself, not when a chat is open (it would overlap
                 the chat input). */}
-            {isAutoCompact && isSessionsNavigation(navState) && !navState.details && (
+            {isSessionsNavigation(navState) && !navState.details && (
               <FabNewChat onClick={() => handleNewChat()} />
             )}
             </div>
+            ) : null
           }
-          navigatorWidth={isAutoCompact ? sessionListWidth : (effectiveSidebarAndNavigatorHidden || isBoardView || isPagesView ? 0 : sessionListWidth)}
+          navigatorWidth={isAutoCompact ? sessionListWidth : 0}
           isSidebarAndNavigatorHidden={effectiveSidebarAndNavigatorHidden}
           isRightSidebarVisible={false}
           isCompact={isAutoCompact}
           isResizing={!!isResizing}
           animateLayout={animateShellLayout}
         />
+          )
+        })()}
 
         {/* Seam handles (absolute, hidden in focused mode) — instant, never animated */}
-        {!effectiveSidebarAndNavigatorHidden && (
+        {!effectiveSidebarAndNavigatorHidden &&
+          !(
+            !isAutoCompact &&
+            (isSettingsNavigation(navState) ||
+              isSourcesNavigation(navState) ||
+              isSkillsNavigation(navState) ||
+              isAutomationsNavigation(navState))
+          ) && (
           <ShellResizeHandle
             handleRef={resizeHandleRef}
-            left={isSidebarVisible ? sidebarWidth + (PANEL_GAP / 2) - PANEL_SASH_HALF_HIT_WIDTH : -PANEL_GAP}
+            left={isSidebarVisible ? sidebarWidth - PANEL_SASH_HALF_HIT_WIDTH : -PANEL_SASH_HIT_WIDTH}
             hoverY={sidebarHandleY}
             onHoverYChange={setSidebarHandleY}
             keepHoverOnLeave={!!isResizing}
             onDragStart={() => setIsResizing('sidebar')}
-          />
-        )}
-        {/* The list and the content share one card, so the list seam is the card's inner hairline
-            (hidden in board view and pages, where the list is collapsed) */}
-        {!effectiveSidebarAndNavigatorHidden && !isBoardView && !isPagesView && (
-          <ShellResizeHandle
-            handleRef={sessionListHandleRef}
-            left={(isSidebarVisible ? sidebarWidth + PANEL_GAP : PANEL_EDGE_INSET) + sessionListWidth - PANEL_SASH_HALF_HIT_WIDTH}
-            hoverY={sessionListHandleY}
-            onHoverYChange={setSessionListHandleY}
-            keepHoverOnLeave={isResizing === 'session-list'}
-            onDragStart={() => setIsResizing('session-list')}
           />
         )}
 
@@ -2930,6 +3148,42 @@ function AppShellContent({
 
       {/* Asks to update rtk when Token Optimization is on but the installed rtk corrupts output */}
       <RtkUpdatePrompt workspaceId={activeWorkspaceId} />
+
+      <ShioriCommandPalette
+        open={commandPaletteOpen}
+        openedWithKeyboard={commandPaletteOpenedWithKeyboard}
+        onOpenChange={setCommandPaletteOpen}
+        sessions={activeSessionMetas.map((meta) => ({
+          id: meta.id,
+          title: getSessionTitle(meta),
+          folderName: meta.workingDirectory ? getPathBasename(meta.workingDirectory) : undefined,
+          lastMessageAt: meta.lastMessageAt,
+          isProcessing: Boolean(meta.isProcessing),
+          needsApproval: hasPendingPrompt(meta.id),
+          isSelected: meta.id === (focusedSessionId ?? session.selected),
+        }))}
+        workspaces={workspaces}
+        activeWorkspaceId={activeWorkspaceId}
+        hasActiveSession={Boolean(focusedSessionId ?? session.selected)}
+        isDark={resolvedMode === 'dark'}
+        onNewChat={() => handleNewChat()}
+        onSelectSession={(targetSessionId) => {
+          if (panelCount > 1) {
+            navigateToSessionInPanel(targetSessionId)
+          } else {
+            navigateToSession(targetSessionId)
+          }
+          focusChatInputForSession(targetSessionId)
+        }}
+        onSelectWorkspace={onSelectWorkspace}
+        onToggleTheme={() => setMode(resolvedMode === 'dark' ? 'light' : 'dark')}
+        onToggleSidebar={() => setIsSidebarVisible((visible) => !visible)}
+        onOpenSettings={(subpage) => handleSettingsClick(subpage)}
+        onOpenSources={handleSourcesClick}
+        onOpenSkills={handleSkillsClick}
+        onOpenAutomations={handleAutomationsClick}
+        onOpenKeyboardShortcuts={onOpenKeyboardShortcuts}
+      />
     </AppShellProvider>
   )
 }

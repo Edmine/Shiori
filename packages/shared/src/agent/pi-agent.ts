@@ -38,6 +38,7 @@ import { getModelById } from '../config/models.ts';
 // BaseAgent provides common functionality
 import { BaseAgent } from './base-agent.ts';
 import type { Workspace } from '../config/storage.ts';
+import { getMagpieBridgeApiKey } from '../config/magpie-bridge.ts';
 
 // Event adapter
 import { PiEventAdapter } from './backend/pi/event-adapter.ts';
@@ -463,6 +464,9 @@ export class PiAgent extends BaseAgent {
     }
 
     const nodePath = runtime.paths?.node || process.execPath;
+    const isElectronBinary =
+      Boolean(process.versions?.electron) &&
+      nodePath.toLowerCase() === process.execPath.toLowerCase();
     const cwd = this.resolvedCwd();
 
     this.debug(`Spawning Pi subprocess: ${nodePath} ${piServerPath}`);
@@ -524,6 +528,7 @@ export class PiAgent extends BaseAgent {
         ...getProxyEnvVars(),
         ...this.config.envOverrides,
         ...awsEnv,
+        ...(isElectronBinary ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
         // Pass session dir for cross-process toolMetadataStore
         ...(sessionDir ? { CRAFT_SESSION_DIR: sessionDir } : {}),
         // Propagate debug mode
@@ -678,7 +683,16 @@ export class PiAgent extends BaseAgent {
       | { type: 'iam'; accessKeyId: string; secretAccessKey: string; region?: string; sessionToken?: string }
   } | null> {
     const piAuthProvider = getBackendRuntime(this.config).piAuthProvider;
-    if (!piAuthProvider) return null;
+    if (!piAuthProvider) {
+      const bridgeApiKey = getMagpieBridgeApiKey(this.config.connectionSlug);
+      if (bridgeApiKey) {
+        return {
+          provider: 'custom-endpoint',
+          credential: { type: 'api_key', key: bridgeApiKey },
+        };
+      }
+      return null;
+    }
 
     try {
       const credentialManager = getCredentialManager();
@@ -733,7 +747,7 @@ export class PiAgent extends BaseAgent {
         // NOTE: authType === 'environment' (e.g. Bedrock with ~/.aws/credentials)
         // intentionally falls through here, finds no API key, and returns null.
         // The subprocess inherits process.env which contains the AWS credential chain.
-        const apiKey = await credentialManager.getLlmApiKey(slug);
+        const apiKey = (await credentialManager.getLlmApiKey(slug)) || getMagpieBridgeApiKey(slug);
         if (apiKey) {
           this.debug(`Retrieved API key credential for Pi provider: ${piAuthProvider}`);
           return {

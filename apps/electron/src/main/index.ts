@@ -156,8 +156,13 @@ if (isDebugMode) {
   process.env.CRAFT_UV = bundledUvExists ? uvBinary : (fallbackUv ?? uvBinary)
 
   // Bun runtime (packaged builds should prefer bundled runtime over PATH)
-  const bunBinary = join(resourcesBase, 'vendor', 'bun', process.platform === 'win32' ? 'bun.exe' : 'bun')
-  if (existsSync(bunBinary)) {
+  const bunFileName = process.platform === 'win32' ? 'bun.exe' : 'bun'
+  const bunCandidates = [
+    join(resourcesBase, 'vendor', 'bun', bunFileName),
+    ...(app.isPackaged ? [join(process.resourcesPath, 'vendor', 'bun', bunFileName)] : []),
+  ]
+  const bunBinary = bunCandidates.find(candidate => existsSync(candidate))
+  if (bunBinary) {
     process.env.CRAFT_BUN = bunBinary
   }
 
@@ -218,8 +223,11 @@ let messagingHandle: MessagingBootstrapHandle | null = null
 let pendingDeepLink: string | null = null
 
 // Set app name early (before app.whenReady) to ensure correct macOS menu bar title
-// Supports multi-instance dev: CRAFT_APP_NAME env var (e.g., "Craft Agents [1]")
-app.setName(process.env.CRAFT_APP_NAME || 'Craft Agents')
+// Supports multi-instance dev: CRAFT_APP_NAME env var (e.g., "Shiori [1]")
+app.setName(process.env.CRAFT_APP_NAME || 'Shiori')
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.shiori.desktop')
+}
 
 // Register as default protocol client for craftagents:// URLs
 // This must be done before app.whenReady() on some platforms
@@ -491,6 +499,9 @@ app.whenReady().then(async () => {
     })
     ipcMain.on('__get-workspace-id', (e) => {
       e.returnValue = windowManager?.getWorkspaceForWindow(e.sender.id) ?? ''
+    })
+    ipcMain.on('__titlebar-overlay-theme', (e, isDark: boolean) => {
+      windowManager?.setTitleBarOverlayTheme(e.sender.id, Boolean(isDark))
     })
 
     // Transport diagnostics bridge — preload reports remote WS connection state changes

@@ -1,21 +1,23 @@
-import craftLogo from "@/assets/craft_logo_c.svg"
+import shioriIcon from '@/assets/shiori-icon.png'
+import { cn } from '@/lib/utils'
 
 interface CraftAppIconProps {
   className?: string
   size?: number
 }
 
-/**
- * CraftAppIcon - Displays the Craft logo (colorful "C" icon)
- */
 export function CraftAppIcon({ className, size = 64 }: CraftAppIconProps) {
   return (
     <img
-      src={craftLogo}
-      alt="Craft"
+      src={shioriIcon}
+      alt="Shiori"
       width={size}
       height={size}
-      className={className}
+      draggable={false}
+      className={cn(
+        'rounded-[24%] object-cover select-none ring-1 ring-black/[0.08] dark:ring-white/[0.12]',
+        className,
+      )}
     />
   )
 }

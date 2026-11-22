@@ -203,8 +203,8 @@ export function themeToCSS(theme: ThemeOverrides, isDark: boolean = false): stri
  * DEFAULT_THEME by __tests__/theme-roles.test.ts.
  */
 export const BACKGROUND_HEX = {
-  light: '#f2f3f4',
-  dark: '#0d0e10',
+  light: '#f0efec',
+  dark: '#13110f',
 } as const;
 
 /**
@@ -216,23 +216,23 @@ export function getBackgroundColor(isDark: boolean): string {
 }
 
 /**
- * Default theme ("Craft Agents"): cool neutrals from the Craft app and the brand purple (design spec §2.2).
+ * Default theme ("Shiori"): warm-gray neutrals, crisp ink text, and desaturated blue-green accent.
  * Its solved roles are static CSS in packages/ui/src/styles/tokens.css (asserted by theme-roles.test.ts).
  */
 export const DEFAULT_THEME: ThemeOverrides = {
-  background: '#fcfdfe',
-  foreground: '#1a1c1e',
-  accent: 'oklch(0.52 0.19 292)',
-  info: 'oklch(0.76 0.15 72)',
-  success: 'oklch(0.62 0.15 150)',
-  destructive: 'oklch(0.58 0.21 27)',
+  background: '#faf9f6',
+  foreground: '#1c1b18',
+  accent: 'oklch(0.49 0.068 206)',
+  info: 'oklch(0.73 0.13 72)',
+  success: 'oklch(0.58 0.11 154)',
+  destructive: 'oklch(0.56 0.17 26)',
   dark: {
-    background: 'oklch(0.165 0.004 265)',
-    foreground: 'oklch(0.945 0.003 265)',
-    accent: 'oklch(0.70 0.15 292)',
-    info: 'oklch(0.80 0.14 75)',
-    success: 'oklch(0.74 0.15 150)',
-    destructive: 'oklch(0.70 0.18 25)',
+    background: 'oklch(0.18 0.005 72)',
+    foreground: 'oklch(0.94 0.006 82)',
+    accent: 'oklch(0.70 0.068 202)',
+    info: 'oklch(0.78 0.12 75)',
+    success: 'oklch(0.72 0.11 154)',
+    destructive: 'oklch(0.68 0.15 25)',
   },
 };
 

@@ -22,6 +22,7 @@ type ApiToChannelMapKeys = Exclude<
   | 'isChannelAvailable'
   | 'getSystemWarnings' // reads env var set at startup — no IPC needed
   | 'getWindowVibrancy' // reads a launch argument set by window-manager — no IPC needed
+  | 'setTitleBarOverlayTheme' // direct IPC to main process — syncs Windows caption overlay color
   | 'relaunchApp' // direct IPC to main process — not through WS RPC
   | 'removeWorkspace' // direct IPC to main process — modifies local config
   | 'getDefaultZoomLevel' // direct IPC to main process — per-device zoom preference

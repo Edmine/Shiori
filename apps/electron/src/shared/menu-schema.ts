@@ -294,15 +294,7 @@ export const ROOT_MENU = {
  * sub-page (mobile). Excludes `keyboardShortcuts`, which is a `MenuItemAction`
  * and lives in `ROOT_MENU` so mobile can hoist it to the root list.
  */
-export const HELP_LINKS: MenuItemUrl[] = [
-  {
-    type: 'url',
-    id: 'helpAndDocs',
-    labelKey: 'menu.helpAndDocs',
-    url: 'https://thecraftagents.com/docs',
-    icon: 'HelpCircle',
-  },
-]
+export const HELP_LINKS: MenuItemUrl[] = []
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Debug menu (dev-only)

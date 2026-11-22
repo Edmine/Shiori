@@ -119,7 +119,9 @@ export function SessionItem({
   // One line, one subject: run state, else labels (full width), else the preview. Squeezing the preview
   // and the chips into one line truncated both into fragments ("Run `gh issu…" · "Schedul…"). A nested
   // row skips the preview (its prompt, which its parent wrote), so a family stays compact.
-  const previewText = runState || hasLabels || depth > 0 ? null : getSessionPreviewText(item)
+  // Desktop unified sidebar prioritizes crisp title-first rows: only active run states,
+  // labels, or sub-sessions take a second line. Compact/mobile retains preview text.
+  const previewText = !isCompactMode || runState || hasLabels || depth > 0 ? null : getSessionPreviewText(item)
 
   // Resolve the bound project so the row can show a project-themed stripe /
   // tint and reveal the project name on hover. Treatment is a user preference
@@ -159,23 +161,24 @@ export function SessionItem({
   }
 
   const subtitle = runState === 'needs-you' ? (
-    <span className="flex items-center gap-1.5 min-w-0 text-info">
-      <Hand className="size-3.5 shrink-0" aria-hidden="true" />
+    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/12 dark:bg-amber-400/15 border border-amber-500/25 px-1.5 py-px text-[11px] leading-[15px] font-medium text-amber-700 dark:text-amber-300 max-w-full">
+      <span className="size-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" aria-hidden="true" />
+      <Hand className="size-2.5 shrink-0" aria-hidden="true" />
       <span className="truncate">{t("session.runState.needsYou")}</span>
     </span>
   ) : runState === 'working' ? (
-    <span className="flex items-center gap-1.5 min-w-0">
-      <Spinner className="text-label text-accent shrink-0" />
+    <span className="inline-flex items-center gap-1 rounded-full bg-accent-tint border border-accent/20 px-1.5 py-px text-[11px] leading-[15px] font-medium text-accent max-w-full">
+      <Spinner className="text-[10px] text-accent shrink-0" />
       <span className="truncate">{t("session.runState.working")}</span>
     </span>
   ) : runState === 'failed' ? (
-    <span className="flex items-center gap-1.5 min-w-0 text-destructive">
-      <AlertCircle className="size-3.5 shrink-0" aria-hidden="true" />
+    <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 border border-destructive/20 px-1.5 py-px text-[11px] leading-[15px] font-medium text-destructive max-w-full">
+      <AlertCircle className="size-2.5 shrink-0" aria-hidden="true" />
       <span className="truncate">{t("session.runState.failed")}</span>
     </span>
   ) : runState === 'plan' ? (
-    <span className="flex items-center gap-1.5 min-w-0">
-      <PlanReadyIcon className="size-3.5 shrink-0 text-success" />
+    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-px text-[11px] leading-[15px] font-medium text-emerald-700 dark:text-emerald-300 max-w-full">
+      <PlanReadyIcon className="size-2.5 shrink-0 text-emerald-600 dark:text-emerald-300" />
       <span className="truncate">{t("session.runState.planReady")}</span>
     </span>
   ) : previewText
@@ -223,9 +226,13 @@ export function SessionItem({
   ) : null
 
   return (
-    <SessionProjectColorWrapper color={projectColor} treatment={projectColorTreatment}>
+    <SessionProjectColorWrapper color={projectColor} treatment={projectColorTreatment} inset={!isCompactMode} isSelected={isSelected || isInMultiSelect}>
     <EntityRow
-      className="session-item"
+      className={cn(
+        "session-item",
+        runState === 'needs-you' && !isSelected && "bg-amber-500/[0.055] dark:bg-amber-400/[0.07]",
+      )}
+      variant={!isCompactMode ? 'sidebar' : 'default'}
       dataAttributes={{ 'data-session-id': item.id }}
       depth={depth}
       guides={guides}
@@ -291,9 +298,38 @@ export function SessionItem({
           onDelete={() => ctx.onDelete(item.id)}
         />
       )}
-      icon={<SessionStatusIcon item={item} />}
+      icon={isCompactMode ? (
+        <SessionStatusIcon item={item} />
+      ) : (
+        <span
+          aria-hidden="true"
+          className="grid size-4 place-items-center shrink-0"
+        >
+          {runState === 'working' ? (
+            <Spinner className="text-[11px] text-accent" />
+          ) : runState === 'needs-you' ? (
+            <span className="size-2 rounded-full bg-amber-500 animate-pulse" />
+          ) : runState === 'failed' ? (
+            <span className="size-2 rounded-full bg-destructive" />
+          ) : runState === 'plan' ? (
+            <span className="size-2 rounded-full bg-emerald-500" />
+          ) : isUnread ? (
+            <span className="size-2 rounded-full bg-accent-solid" />
+          ) : (
+            <span
+              className={cn(
+                "size-1.5 rounded-full transition-colors duration-micro",
+                isSelected ? "bg-accent/70" : "bg-foreground/20 group-hover:bg-foreground/35",
+              )}
+            />
+          )}
+        </span>
+      )}
       title={ctx.searchQuery ? highlightMatch(title, ctx.searchQuery) : title}
-      titleClassName={cn(isUnread && "font-semibold", item.isAsyncOperationOngoing && "animate-shimmer-text")}
+      titleClassName={cn(
+        isUnread ? "font-semibold" : isSelected ? "font-medium" : undefined,
+        item.isAsyncOperationOngoing && "animate-shimmer-text",
+      )}
       subtitle={subtitle ?? subSessionCount}
       subtitleLeading={subSessionToggle}
       subtitleTrailing={hasLabels && !needsAttention ? <SessionBadges item={item} hiddenLabels={inheritedLabels} /> : undefined}
@@ -335,7 +371,9 @@ export function SessionItem({
         // Unread: an accent dot leads the meta and the age turns accent, so the signal sits on the
         // row's own grid (the trailing slot) instead of floating in the bleed past the gutter.
         <span className="inline-flex items-center gap-1.5 text-accent">
-          <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-accent-solid" />
+          {isCompactMode && (
+            <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-accent-solid" />
+          )}
           <span className="sr-only">{t("session.unreadIndicator")}</span>
           {item.isFlagged ? (
             <Flag className="size-3.5 text-info" aria-label={t("sidebar.flagged")} />

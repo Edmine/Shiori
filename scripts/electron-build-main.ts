@@ -183,15 +183,15 @@ async function buildPiAgentServer(): Promise<void> {
     mkdirSync(distDir, { recursive: true });
   }
 
-  // Use --target=bun --format=esm because the Pi SDK (@earendil-works/pi-coding-agent)
-  // is ESM-only. --target=node --format=cjs leaves ESM deps as external require()
-  // calls that fail at runtime since there are no node_modules relative to dist/.
+  // Use --target=node --format=esm because the Pi SDK (@earendil-works/pi-coding-agent)
+  // is ESM-only and pi-agent-server may run under Node/Electron (ELECTRON_RUN_AS_NODE=1)
+  // as well as Bun. --target=bun emits Bun-only import.meta.require (__require).
   const proc = spawn({
     cmd: [
       "bun", "build",
       join(PI_AGENT_SERVER_DIR, "src/index.ts"),
       "--outfile", PI_AGENT_SERVER_OUTPUT,
-      "--target", "bun",
+      "--target", "node",
       "--format", "esm",
       "--external", "koffi",
     ],

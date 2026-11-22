@@ -16,6 +16,13 @@ import { expandPath, toPortablePath, getBundledAssetsDir } from '../utils/paths.
 import { debug } from '../utils/debug.ts';
 import { readJsonFileSync } from '../utils/files.ts';
 import { CONFIG_DIR } from './paths.ts';
+import {
+  ensureShioriDir,
+  loadMagpieBridgeConnection,
+  mergeMagpieBridgeConnection,
+  SHIORI_MAGPIE_SLUG,
+  updateMagpieBridgeDefaultModel,
+} from './magpie-bridge.ts';
 import type { StoredAttachment, StoredMessage } from '@craft-agent/core/types';
 import type { Plan } from '../agent/plan-types.ts';
 import type { PermissionMode } from '../agent/mode-manager.ts';
@@ -259,6 +266,9 @@ export function ensureConfigDir(): void {
   if (!existsSync(CONFIG_DIR)) {
     mkdirSync(CONFIG_DIR, { recursive: true });
   }
+
+  // Ensure ~/.shiori exists so external tools (e.g. Magpie) detect Shiori cleanly
+  ensureShioriDir();
 
   // Snapshot an existing config.json (dated, keep last 3) before anything can
   // mutate or — in a failure path — overwrite the workspace registry.
@@ -2792,10 +2802,9 @@ export async function migrateLegacyCredentials(): Promise<void> {
  */
 export function getLlmConnections(): LlmConnection[] {
   const config = loadStoredConfig();
-  if (!config) return [];
-
-  // Return empty array if not migrated yet - caller should call migration on startup
-  return config.llmConnections || [];
+  const storedConnections = config?.llmConnections || [];
+  const bridgeConnection = loadMagpieBridgeConnection();
+  return mergeMagpieBridgeConnection(storedConnections, bridgeConnection);
 }
 
 /**
@@ -2847,17 +2856,25 @@ export function addLlmConnection(connection: LlmConnection): boolean {
  * @returns true if updated, false if not found
  */
 export function updateLlmConnection(slug: string, updates: Partial<Omit<LlmConnection, 'slug'>>): boolean {
+  const bridgeActive = slug === SHIORI_MAGPIE_SLUG && loadMagpieBridgeConnection() !== null;
+  let bridgeUpdated = false;
+  if (bridgeActive && typeof updates.defaultModel === 'string' && updates.defaultModel.trim()) {
+    bridgeUpdated = updateMagpieBridgeDefaultModel(updates.defaultModel);
+  }
+
   const config = loadStoredConfig();
-  if (!config) return false;
+  if (!config) return bridgeActive ? (bridgeUpdated || updates.defaultModel === undefined) : false;
 
   // No connections means nothing to update
   if (!config.llmConnections || config.llmConnections.length === 0) {
-    return false;
+    return bridgeActive ? (bridgeUpdated || updates.defaultModel === undefined) : false;
   }
 
   const connections = config.llmConnections;
   const index = connections.findIndex(c => c.slug === slug);
-  if (index === -1) return false;
+  if (index === -1) {
+    return bridgeActive ? (bridgeUpdated || updates.defaultModel === undefined) : false;
+  }
 
   const existing = connections[index]!;
   const toModelIds = (models?: Array<{ id: string } | string>): string[] =>
@@ -2992,14 +3009,18 @@ export function deleteLlmConnection(slug: string): boolean {
  */
 export function getDefaultLlmConnection(): string | null {
   const config = loadStoredConfig();
-  if (!config) return null;
+  const connections = getLlmConnections();
 
   // If no connections, return null
-  if (!config.llmConnections || config.llmConnections.length === 0) {
+  if (connections.length === 0) {
     return null;
   }
 
-  return config.defaultLlmConnection || config.llmConnections[0]?.slug || null;
+  if (config?.defaultLlmConnection && connections.some(c => c.slug === config.defaultLlmConnection)) {
+    return config.defaultLlmConnection;
+  }
+
+  return connections[0]?.slug || null;
 }
 
 /**
@@ -3011,13 +3032,14 @@ export function setDefaultLlmConnection(slug: string): boolean {
   const config = loadStoredConfig();
   if (!config) return false;
 
+  const connections = getLlmConnections();
   // No connections means nothing to set as default
-  if (!config.llmConnections || config.llmConnections.length === 0) {
+  if (connections.length === 0) {
     return false;
   }
 
   // Verify connection exists
-  if (!config.llmConnections.some(c => c.slug === slug)) {
+  if (!connections.some(c => c.slug === slug)) {
     return false;
   }
 
@@ -3185,6 +3207,27 @@ export function ensureToolIcons(): void {
       if (!existsSync(destPath)) {
         const srcPath = join(bundledToolIconsDir, file);
         copyFileSync(srcPath, destPath);
+      }
+    }
+
+    // Upgrade legacy Craft Agent entry in pre-existing tool-icons.json to Shiori
+    const configPath = join(toolIconsDir, 'tool-icons.json');
+    if (existsSync(configPath)) {
+      const raw = readFileSync(configPath, 'utf-8');
+      const parsed = JSON.parse(raw) as { version?: number; tools?: Array<{ id?: string; displayName?: string; icon?: string; commands?: string[] }> };
+      if (Array.isArray(parsed.tools)) {
+        let changed = false;
+        const migrated = parsed.tools.map((entry) => {
+          if (entry && entry.id === 'craft-agent') {
+            changed = true;
+            return { id: 'shiori', displayName: 'Shiori', icon: 'shiori.png', commands: ['shiori'] };
+          }
+          return entry;
+        });
+        if (changed) {
+          parsed.tools = migrated;
+          writeFileSync(configPath, `${JSON.stringify(parsed, null, 2)}\n`, 'utf-8');
+        }
       }
     }
   } catch {

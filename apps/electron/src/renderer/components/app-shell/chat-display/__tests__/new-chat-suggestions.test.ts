@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import type { LoadedSource } from '@craft-agent/shared/sources/types'
 import {
+  newChatSuggestionDescription,
   newChatSuggestionKind,
   newChatSuggestionLabel,
   newChatSuggestionMentions,
@@ -49,12 +50,11 @@ describe('pickNewChatSuggestions', () => {
     expect(picks[0]).toEqual({ kind: 'source', sourceSlug: 'cat-facts', sourceName: 'Cat Facts' })
   })
 
-  it('tops up with prompts that need no source, offering to connect email first', () => {
-    expect(pickNewChatSuggestions([])).toEqual([{ kind: 'connectEmail' }, { kind: 'news' }, { kind: 'files' }])
-    expect(pickNewChatSuggestions([slack]).map(p => p.kind)).toEqual(['chat', 'connectEmail', 'news'])
-    // A working email source replaces the connect offer
-    expect(pickNewChatSuggestions([gmail]).map(p => p.kind)).toEqual(['email', 'news', 'files'])
-    expect(pickNewChatSuggestions([gmail, slack]).map(p => p.kind)).toEqual(['email', 'chat', 'news'])
+  it('tops up with editorial prompts that need no source', () => {
+    expect(pickNewChatSuggestions([])).toEqual([{ kind: 'exploreProject' }, { kind: 'reviewCode' }, { kind: 'draftPlan' }])
+    expect(pickNewChatSuggestions([slack]).map(p => p.kind)).toEqual(['chat', 'exploreProject', 'reviewCode'])
+    expect(pickNewChatSuggestions([gmail]).map(p => p.kind)).toEqual(['email', 'exploreProject', 'reviewCode'])
+    expect(pickNewChatSuggestions([gmail, slack]).map(p => p.kind)).toEqual(['email', 'chat', 'exploreProject'])
   })
 })
 
@@ -63,12 +63,14 @@ describe('suggestion text', () => {
     const [pick] = pickNewChatSuggestions([gmail])
     expect(newChatSuggestionLabel(pick!, fakeT)).toBe('chat.suggestions.email|Gmail')
     expect(newChatSuggestionMessage(pick!, fakeT)).toBe('chat.suggestions.email|[source:gmail]')
+    expect(newChatSuggestionDescription(pick!, fakeT)).toBeNull()
   })
 
-  it('sends a top-up as its own text', () => {
+  it('sends an editorial top-up using its dedicated prompt and exposes its description', () => {
     const [pick] = pickNewChatSuggestions([])
-    expect(newChatSuggestionLabel(pick!, fakeT)).toBe('chat.suggestions.connectEmail|')
-    expect(newChatSuggestionMessage(pick!, fakeT)).toBe('chat.suggestions.connectEmail|')
+    expect(newChatSuggestionLabel(pick!, fakeT)).toBe('chat.suggestions.exploreProject|')
+    expect(newChatSuggestionDescription(pick!, fakeT)).toBe('chat.suggestions.exploreProjectDesc|')
+    expect(newChatSuggestionMessage(pick!, fakeT)).toBe('chat.suggestions.exploreProjectPrompt|')
   })
 })
 

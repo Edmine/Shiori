@@ -224,15 +224,17 @@ export default function PermissionsSettingsPage() {
                 <p>
                   {t("settings.permissions.aboutText2")}
                 </p>
-                <p>
-                  <button
-                    type="button"
-                    onClick={() => window.electronAPI?.openUrl(getDocUrl('permissions'))}
-                    className={settingsUI.link}
-                  >
-                    {t("common.learnMore")}
-                  </button>
-                </p>
+                {Boolean(getDocUrl('permissions')) && (
+                  <p>
+                    <button
+                      type="button"
+                      onClick={() => window.electronAPI?.openUrl(getDocUrl('permissions'))}
+                      className={settingsUI.link}
+                    >
+                      {t("common.learnMore")}
+                    </button>
+                  </p>
+                )}
               </div>
             </SettingsCard>
           </SettingsSection>

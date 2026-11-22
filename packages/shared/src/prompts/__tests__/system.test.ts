@@ -22,7 +22,7 @@ import { getBrowserToolEnabled } from '../../config/storage.ts'
 import { DOC_REFS } from '../../docs/index.ts'
 
 const GIT_CONVENTIONS_HEADING = '## Git Conventions'
-const CO_AUTHOR_TRAILER = 'Co-Authored-By: Craft Agent <agents-noreply@craft.do>'
+const CO_AUTHOR_TRAILER = 'Co-Authored-By: Shiori <shiori@local>'
 
 describe('system prompt guidance', () => {
   it('keeps the default static prompt below the budget', () => {
@@ -68,7 +68,7 @@ describe('system prompt guidance', () => {
     const prompt = getMiniAgentSystemPrompt('/tmp/workspace')
 
     expect(prompt).toContain('MCP tool calls require _displayName and _intent metadata')
-    expect(prompt).toContain('read the matching local doc in ~/.craft-agent/docs/')
+    expect(prompt).toContain('read the matching local doc in ~/.shiori/docs/')
   })
 
   it('keeps automations defined as a first-class feature area', () => {
@@ -358,6 +358,7 @@ describe('coding agent profile', () => {
     const prompt = coding()
     for (const text of [
       '## Preview Blocks', 'html-preview', '## Structured Data', 'transform_data', '## Diagrams', 'mermaid_validate',
+      '## Intelligent UI', 'shiori-ui', 'window.shiori.send',
       '## Sessions', 'spawn_session', 'get_session_info', 'list_sessions', '## LLM Tool', 'call_llm',
       '## Pages', 'create_page', DOC_REFS.pages, '## Document Tools', 'markitdown', 'source_test',
     ]) {
@@ -383,7 +384,7 @@ describe('coding agent profile', () => {
       const end = prompt.indexOf('\n## ', start)
       return prompt.slice(start, end === -1 ? undefined : end)
     }
-    for (const heading of ['## Preview Blocks', '## Structured Data', '## Diagrams', '## Subagents', '## LLM Tool', '## Pages', '## Document Tools']) {
+    for (const heading of ['## Preview Blocks', '## Intelligent UI', '## Structured Data', '## Diagrams', '## Subagents', '## LLM Tool', '## Pages', '## Document Tools']) {
       expect(plain).toContain(section(heading))
     }
     if (getBrowserToolEnabled()) {

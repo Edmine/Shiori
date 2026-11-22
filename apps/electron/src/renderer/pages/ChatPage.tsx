@@ -8,11 +8,19 @@
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, FolderOpen, GitBranch, X } from 'lucide-react'
 import type { FileLinkClick } from '@craft-agent/ui'
+import type { GitStatusSummary } from '@craft-agent/shared/protocol'
 import { ChatDisplay, type ChatDisplayHandle } from '@/components/app-shell/ChatDisplay'
 import { PanelHeader } from '@/components/app-shell/PanelHeader'
 import { ChatHeader } from '@/components/app-shell/chat-header/ChatHeader'
+import { SessionFilesSection } from '@/components/right-sidebar/SessionFilesSection'
+import { GitDiffDrawer } from '@/components/right-sidebar/GitDiffDrawer'
+import { SHIORI_TOGGLE_RIGHT_PANEL_EVENT } from '@/components/app-shell/ShioriCommandPalette'
+import { appendFileMentionToDraft } from '@/components/app-shell/command-palette-helpers'
+import { dispatchFocusInputEvent } from '@/components/app-shell/input/focus-input-events'
+import { useAction } from '@/actions'
+import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useAppShellContext, usePendingPermission, usePendingCredential, useSessionOptionsFor, useSession as useSessionData } from '@/context/AppShellContext'
 import { rendererPerf } from '@/lib/perf'
@@ -406,6 +414,135 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
   // Use isAsyncOperationOngoing for shimmer effect (sharing, updating share, revoking, title regeneration)
   const isAsyncOperationOngoing = session?.isAsyncOperationOngoing || sessionMeta?.isAsyncOperationOngoing || false
 
+  // On-demand collapsible right review drawer ('diff' | 'files' | null; closed by default)
+  const [rightPanelTab, setRightPanelTab] = React.useState<'diff' | 'files' | null>(null)
+  const [diffDrawerWidth, setDiffDrawerWidth] = React.useState<number>(() => {
+    try {
+      const stored = window.localStorage.getItem('shiori:diff-drawer-width')
+      const parsed = stored ? Number(stored) : NaN
+      if (Number.isFinite(parsed) && parsed >= 340 && parsed <= 760) return parsed
+    } catch {
+      // ignore storage errors
+    }
+    return 468
+  })
+  const [isResizingDrawer, setIsResizingDrawer] = React.useState(false)
+  const handleToggleFilesPanel = React.useCallback(() => {
+    setRightPanelTab((prev) => (prev === 'files' ? null : 'files'))
+  }, [])
+  const handleToggleDiffPanel = React.useCallback(() => {
+    setRightPanelTab((prev) => (prev === 'diff' ? null : 'diff'))
+  }, [])
+
+  useAction('view.toggleDiffDrawer', handleToggleDiffPanel, {
+    enabled: () => isFocusedPanel !== false && !isCompactMode,
+  })
+
+  React.useEffect(() => {
+    const handler = (event: Event) => {
+      if (isFocusedPanel === false || isCompactMode) return
+      const detail = (event as CustomEvent<{ tab?: 'diff' | 'files' }>).detail
+      if (detail?.tab === 'diff') {
+        setRightPanelTab((prev) => (prev === 'diff' ? null : 'diff'))
+      } else if (detail?.tab === 'files') {
+        setRightPanelTab((prev) => (prev === 'files' ? null : 'files'))
+      }
+    }
+    window.addEventListener(SHIORI_TOGGLE_RIGHT_PANEL_EVENT, handler)
+    return () => window.removeEventListener(SHIORI_TOGGLE_RIGHT_PANEL_EVENT, handler)
+  }, [isFocusedPanel, isCompactMode])
+
+  const handleMentionDiffFile = React.useCallback(
+    (relativePath: string) => {
+      const nextText = appendFileMentionToDraft(inputValueRef.current, relativePath)
+      handleInputChange(nextText)
+      dispatchFocusInputEvent({ sessionId })
+    },
+    [handleInputChange, sessionId],
+  )
+
+  const handleStartDrawerResize = React.useCallback(
+    (startEvent: React.MouseEvent<HTMLDivElement>) => {
+      if (rightPanelTab !== 'diff') return
+      startEvent.preventDefault()
+      const startX = startEvent.clientX
+      const startWidth = diffDrawerWidth
+      setIsResizingDrawer(true)
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        const delta = startX - moveEvent.clientX
+        const maxWidth = Math.min(760, Math.max(360, Math.floor(window.innerWidth * 0.56)))
+        const nextWidth = Math.min(maxWidth, Math.max(340, startWidth + delta))
+        setDiffDrawerWidth(nextWidth)
+      }
+
+      const handleMouseUp = () => {
+        setIsResizingDrawer(false)
+        window.removeEventListener('mousemove', handleMouseMove)
+        window.removeEventListener('mouseup', handleMouseUp)
+      }
+
+      window.addEventListener('mousemove', handleMouseMove)
+      window.addEventListener('mouseup', handleMouseUp)
+    },
+    [rightPanelTab, diffDrawerWidth],
+  )
+
+  React.useEffect(() => {
+    if (isResizingDrawer) return
+    try {
+      window.localStorage.setItem('shiori:diff-drawer-width', String(diffDrawerWidth))
+    } catch {
+      // ignore storage errors
+    }
+  }, [diffDrawerWidth, isResizingDrawer])
+
+  // Live Git status tracking for the active session's working directory
+  const effectiveGitDir = workingDirectory || activeWorkspace?.rootPath
+  const [gitStatus, setGitStatus] = React.useState<GitStatusSummary | null>(null)
+  const [gitStatusLoading, setGitStatusLoading] = React.useState(false)
+
+  const refreshGitStatus = React.useCallback(() => {
+    if (!effectiveGitDir || isCompactMode) {
+      setGitStatus(null)
+      return
+    }
+    setGitStatusLoading(true)
+    window.electronAPI
+      .getGitStatus(effectiveGitDir)
+      .then((summary) => {
+        setGitStatus(summary)
+      })
+      .catch(() => {
+        setGitStatus(null)
+      })
+      .finally(() => {
+        setGitStatusLoading(false)
+      })
+  }, [effectiveGitDir, isCompactMode])
+
+  // Fetch on directory / session mount
+  React.useEffect(() => {
+    refreshGitStatus()
+  }, [refreshGitStatus, sessionId])
+
+  // Refresh automatically whenever an agent turn completes (isProcessing: true -> false)
+  const wasProcessingRef = React.useRef<boolean>(false)
+  const isCurrentlyProcessing = Boolean(session?.isProcessing ?? sessionMeta?.isProcessing)
+  React.useEffect(() => {
+    if (wasProcessingRef.current && !isCurrentlyProcessing) {
+      refreshGitStatus()
+    }
+    wasProcessingRef.current = isCurrentlyProcessing
+  }, [isCurrentlyProcessing, refreshGitStatus])
+
+  // Refresh when the user opens the Diff tab
+  React.useEffect(() => {
+    if (rightPanelTab === 'diff') {
+      refreshGitStatus()
+    }
+  }, [rightPanelTab, refreshGitStatus])
+
   // Handle missing session - loading or deleted
   if (!session) {
     if (sessionMeta) {
@@ -514,9 +651,15 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
         prWatchAutoFix={prWatch.autoFix}
         onSetPrAutoFix={prWatch.setAutoFix}
         onPrCardOpenChange={prWatch.onCardOpenChange}
+        isFilesPanelOpen={rightPanelTab === 'files'}
+        onToggleFilesPanel={handleToggleFilesPanel}
+        gitStatus={gitStatus}
+        isDiffPanelOpen={rightPanelTab === 'diff'}
+        onToggleDiffPanel={handleToggleDiffPanel}
       />
-      <div className="flex-1 flex flex-col min-h-0">
-        <ChatDisplay
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0">
+          <ChatDisplay
           ref={chatDisplayRef}
           session={session}
           onSendMessage={(message, attachments, skillSlugs) => {
@@ -566,6 +709,111 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
           compactMode={!!isCompactMode}
           enableCompactModelPicker={!!isCompactMode}
         />
+        </div>
+        {!isCompactMode && rightPanelTab !== null && (
+          <aside
+            aria-label={
+              rightPanelTab === 'diff'
+                ? t('gitDiff.drawerTitle', { defaultValue: '代码改动' })
+                : t('chat.sessionFiles')
+            }
+            style={rightPanelTab === 'diff' ? { width: diffDrawerWidth } : undefined}
+            className={cn(
+              'relative shrink-0 border-l border-subtle bg-surface-sunken/50 flex flex-col min-h-0 max-w-[56vw]',
+              rightPanelTab === 'files' && 'w-[292px]',
+              isResizingDrawer && 'select-none',
+            )}
+          >
+            {rightPanelTab === 'diff' && (
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                onMouseDown={handleStartDrawerResize}
+                className={cn(
+                  'absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize transition-colors',
+                  isResizingDrawer ? 'bg-accent/40' : 'hover:bg-accent/25',
+                )}
+              />
+            )}
+            <div className="flex h-10 shrink-0 items-center justify-between gap-2 border-b border-subtle px-3">
+              <div className="flex items-center gap-1 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setRightPanelTab('diff')}
+                  aria-pressed={rightPanelTab === 'diff'}
+                  className={cn(
+                    'inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-label-sm transition-colors duration-micro cursor-pointer',
+                    rightPanelTab === 'diff'
+                      ? 'bg-accent-tint font-medium text-accent'
+                      : 'text-tertiary hover:bg-fill-hover hover:text-foreground',
+                  )}
+                >
+                  <GitBranch className="size-3.5 shrink-0" aria-hidden="true" />
+                  <span>{t('gitDiff.drawerTitle', { defaultValue: '代码改动' })}</span>
+                  {gitStatus?.isRepo && gitStatus.files.length > 0 && (
+                    <span className="rounded-full bg-black/[0.06] dark:bg-white/[0.1] px-1.5 py-px text-[10.5px] font-mono tabular-nums">
+                      {gitStatus.files.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRightPanelTab('files')}
+                  aria-pressed={rightPanelTab === 'files'}
+                  className={cn(
+                    'inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-label-sm transition-colors duration-micro cursor-pointer',
+                    rightPanelTab === 'files'
+                      ? 'bg-accent-tint font-medium text-accent'
+                      : 'text-tertiary hover:bg-fill-hover hover:text-foreground',
+                  )}
+                >
+                  <FolderOpen className="size-3.5 shrink-0" aria-hidden="true" />
+                  <span>{t('chat.sessionFiles')}</span>
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRightPanelTab(null)}
+                aria-label={t('common.close')}
+                className="inline-grid place-items-center size-6 rounded-md text-tertiary hover:bg-fill-hover hover:text-foreground transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-focus-ring"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
+            {rightPanelTab === 'diff' ? (
+              <GitDiffDrawer
+                dirPath={effectiveGitDir}
+                gitStatus={gitStatus}
+                isLoading={gitStatusLoading}
+                onRefresh={refreshGitStatus}
+                onOpenFile={(absPath) => handleOpenFile(absPath)}
+                onMentionFile={handleMentionDiffFile}
+              />
+            ) : (
+              <>
+                <SessionFilesSection
+                  sessionId={sessionId}
+                  sessionFolderPath={session?.sessionFolderPath}
+                  hideHeader
+                  className="flex-1 min-h-0"
+                />
+                {workingDirectory && (
+                  <div className="shrink-0 border-t border-subtle px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => window.electronAPI.showInFolder(workingDirectory)}
+                      title={workingDirectory}
+                      className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-caption text-tertiary hover:bg-fill-hover hover:text-foreground transition-colors cursor-pointer"
+                    >
+                      <FolderOpen className="size-3 shrink-0" />
+                      <span className="truncate font-mono">{workingDirectory}</span>
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </aside>
+        )}
       </div>
     </div>
   )

@@ -25,6 +25,7 @@ import {
   Calendar,
   Check,
   Flag,
+  Folder,
   Inbox,
   Layers,
   ListFilter,
@@ -295,6 +296,12 @@ export function CompactSessionListFilter({
 
           {!isSearching && !isStateSubView && (
             <Section title={t('sidebar.group')} icon={<Layers className="h-3.5 w-3.5" />}>
+              <FilterRow
+                icon={<Folder className="h-4 w-4" />}
+                label={t('sidebar.groupByFolder', { defaultValue: '按目录' })}
+                radioSelected={chatGroupingMode === 'folder'}
+                onTap={() => setChatGroupingMode('folder')}
+              />
               <FilterRow
                 icon={<Calendar className="h-4 w-4" />}
                 label={t('sidebar.groupByDate')}

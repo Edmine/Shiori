@@ -471,6 +471,10 @@ const WINDOW_VIBRANCY_ARG = '--craft-window-vibrancy='
   return value === 'under-window' || value === 'mica' ? value : null
 }
 
+;(api as ElectronAPI).setTitleBarOverlayTheme = (isDark: boolean) => {
+  ipcRenderer.send('__titlebar-overlay-theme', isDark)
+}
+
 // i18n: sync language changes to main process (for native menus/dialogs)
 ;(api as ElectronAPI).changeLanguage = (lang: string) => ipcRenderer.invoke('i18n:changeLanguage', lang)
 

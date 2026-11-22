@@ -35,6 +35,8 @@ interface WorkspaceAvatarProps {
   className?: string
   /** Override font size for the initial letter (default `text-[10px]`). */
   fallbackClassName?: string
+  /** 'auto' uses deterministic HSL hue; 'neutral' uses a calm monochrome tile unless a color override exists. */
+  tone?: 'auto' | 'neutral'
 }
 
 export function WorkspaceAvatar({
@@ -43,12 +45,14 @@ export function WorkspaceAvatar({
   src,
   className,
   fallbackClassName,
+  tone = 'auto',
 }: WorkspaceAvatarProps) {
   const colorOverrides = useAtomValue(workspaceAvatarColorsAtom)
   const initial = (workspaceName?.trim().charAt(0) || 'W').toUpperCase()
   const hasId = !!workspaceId
   const override = hasId ? colorOverrides[workspaceId!] : undefined
-  const bgStyle = hasId
+  const useNeutralTile = tone === 'neutral' && !override
+  const bgStyle = hasId && !useNeutralTile
     ? {
         backgroundColor:
           override || workspaceAvatarBackground(getWorkspaceHue(workspaceId!)),
@@ -60,11 +64,16 @@ export function WorkspaceAvatar({
       src={src ?? undefined}
       alt={workspaceName}
       className={className}
-      fallbackClassName={cn('text-[10px]', !hasId && 'bg-muted', fallbackClassName)}
+      fallbackClassName={cn('text-[10px]', (!hasId || useNeutralTile) && 'bg-muted', fallbackClassName)}
       fallback={
         hasId ? (
           <div
-            className="flex h-full w-full items-center justify-center font-medium text-white"
+            className={cn(
+              'flex h-full w-full items-center justify-center font-semibold',
+              useNeutralTile
+                ? 'bg-foreground/[0.08] text-foreground/80 ring-1 ring-inset ring-border/70 dark:bg-white/[0.10] dark:text-foreground/90'
+                : 'text-white',
+            )}
             style={bgStyle}
           >
             {initial}

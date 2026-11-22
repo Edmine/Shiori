@@ -14,7 +14,7 @@ import {
   StyledDropdownMenuSubTrigger,
   StyledDropdownMenuSubContent,
 } from "@/components/ui/styled-dropdown"
-import { CraftAgentsSymbol } from "../icons/CraftAgentsSymbol"
+import { ShioriSymbol } from "../icons/ShioriSymbol"
 import { SquarePenRounded } from "../icons/SquarePenRounded"
 import { SETTINGS_ICONS } from "../icons/SettingsIcons"
 import { TopBarButton } from "../ui/TopBarButton"
@@ -140,11 +140,13 @@ function renderMenuSection(
 export function DesktopAppMenu({
   onNewChat,
   onNewWindow,
+  onAddBrowserPanel,
   onOpenSettings,
   onOpenSettingsSubpage,
   onOpenKeyboardShortcuts,
   onToggleSidebar,
   onToggleFocusMode,
+  compact = false,
 }: AppMenuProps) {
   const { t } = useTranslation()
   const [isDebugMode, setIsDebugMode] = useState(false)
@@ -167,8 +169,16 @@ export function DesktopAppMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <TopBarButton aria-label={t("menu.craftMenu")}>
-          <CraftAgentsSymbol className="h-4 text-accent" />
+        <TopBarButton
+          aria-label={t("menu.craftMenu")}
+          className={compact ? "size-7 p-0 text-secondary hover:text-foreground" : "w-auto px-2 gap-1.5"}
+        >
+          <ShioriSymbol className={compact ? "size-[20px] shrink-0" : "size-[18px] shrink-0"} />
+          {!compact && (
+            <span className="font-sans text-label font-semibold tracking-tight text-foreground">
+              Shiori
+            </span>
+          )}
         </TopBarButton>
       </DropdownMenuTrigger>
       <StyledDropdownMenuContent align="start" minWidth="min-w-48">
@@ -182,6 +192,12 @@ export function DesktopAppMenu({
             <Icons.AppWindow className="h-3.5 w-3.5" />
             {t(ROOT_MENU.newWindow.labelKey)}
             {newWindowHotkey && <DropdownMenuShortcut className="pl-6">{newWindowHotkey}</DropdownMenuShortcut>}
+          </StyledDropdownMenuItem>
+        )}
+        {onAddBrowserPanel && (
+          <StyledDropdownMenuItem onClick={onAddBrowserPanel}>
+            <Icons.Globe className="h-3.5 w-3.5" />
+            {t("browser.newWindow")}
           </StyledDropdownMenuItem>
         )}
 
@@ -220,32 +236,40 @@ export function DesktopAppMenu({
           </StyledDropdownMenuSubContent>
         </DropdownMenuSub>
 
-        <DropdownMenuSub>
-          <StyledDropdownMenuSubTrigger>
-            <Icons.HelpCircle className="h-3.5 w-3.5" />
-            {t("menu.help")}
-          </StyledDropdownMenuSubTrigger>
-          <StyledDropdownMenuSubContent>
-            {HELP_LINKS.map((link) => {
-              const Icon = getIcon(link.icon)
-              return (
-                <StyledDropdownMenuItem
-                  key={link.id}
-                  onClick={() => window.electronAPI.openUrl(link.url)}
-                >
-                  {Icon && <Icon className="h-3.5 w-3.5" />}
-                  {t(link.labelKey)}
-                  <Icons.ExternalLink className="h-3 w-3 ml-auto text-tertiary" />
-                </StyledDropdownMenuItem>
-              )
-            })}
-            <StyledDropdownMenuItem onClick={onOpenKeyboardShortcuts}>
-              <Icons.Keyboard className="h-3.5 w-3.5" />
-              {t(ROOT_MENU.keyboardShortcuts.labelKey)}
-              {keyboardShortcutsHotkey && <DropdownMenuShortcut className="pl-6">{keyboardShortcutsHotkey}</DropdownMenuShortcut>}
-            </StyledDropdownMenuItem>
-          </StyledDropdownMenuSubContent>
-        </DropdownMenuSub>
+        {HELP_LINKS.length > 0 ? (
+          <DropdownMenuSub>
+            <StyledDropdownMenuSubTrigger>
+              <Icons.HelpCircle className="h-3.5 w-3.5" />
+              {t("menu.help")}
+            </StyledDropdownMenuSubTrigger>
+            <StyledDropdownMenuSubContent>
+              {HELP_LINKS.map((link) => {
+                const Icon = getIcon(link.icon)
+                return (
+                  <StyledDropdownMenuItem
+                    key={link.id}
+                    onClick={() => window.electronAPI.openUrl(link.url)}
+                  >
+                    {Icon && <Icon className="h-3.5 w-3.5" />}
+                    {t(link.labelKey)}
+                    <Icons.ExternalLink className="h-3 w-3 ml-auto text-tertiary" />
+                  </StyledDropdownMenuItem>
+                )
+              })}
+              <StyledDropdownMenuItem onClick={onOpenKeyboardShortcuts}>
+                <Icons.Keyboard className="h-3.5 w-3.5" />
+                {t(ROOT_MENU.keyboardShortcuts.labelKey)}
+                {keyboardShortcutsHotkey && <DropdownMenuShortcut className="pl-6">{keyboardShortcutsHotkey}</DropdownMenuShortcut>}
+              </StyledDropdownMenuItem>
+            </StyledDropdownMenuSubContent>
+          </DropdownMenuSub>
+        ) : (
+          <StyledDropdownMenuItem onClick={onOpenKeyboardShortcuts}>
+            <Icons.Keyboard className="h-3.5 w-3.5" />
+            {t(ROOT_MENU.keyboardShortcuts.labelKey)}
+            {keyboardShortcutsHotkey && <DropdownMenuShortcut className="pl-6">{keyboardShortcutsHotkey}</DropdownMenuShortcut>}
+          </StyledDropdownMenuItem>
+        )}
 
         {isDebugMode && renderDebugSubmenu(t)}
 

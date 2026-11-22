@@ -1,5 +1,5 @@
 import { motion } from 'motion/react'
-import { CraftAgentsSymbol } from './icons/CraftAgentsSymbol'
+import { ShioriSymbol } from './icons/ShioriSymbol'
 
 interface SplashScreenProps {
   isExiting: boolean
@@ -36,7 +36,7 @@ export function SplashScreen({ isExiting, onExitComplete }: SplashScreenProps) {
           ease: [0.16, 1, 0.3, 1] // Exponential out curve
         }}
       >
-        <CraftAgentsSymbol className="h-8 text-accent" />
+        <ShioriSymbol className="size-14 shadow-sm" />
       </motion.div>
     </motion.div>
   )

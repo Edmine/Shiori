@@ -242,9 +242,14 @@ export class WindowManager {
         vibrancy: 'under-window',
         visualEffectState: 'active',
       }),
-      // Windows: native frame, Mica on Windows 11 22H2+
+      // Windows: frameless integrated titlebar with native caption overlay (Codex/modern Win11 style)
       ...(isWindows && {
-        frame: true, // Keep native frame for better UX
+        titleBarStyle: 'hidden',
+        titleBarOverlay: {
+          color: '#00000000',
+          symbolColor: nativeTheme.shouldUseDarkColors ? '#f2efe9' : '#262421',
+          height: 44,
+        },
         autoHideMenuBar: true, // Menu is null on Windows, this is just for safety
         // Note: Don't use transparent:true with backgroundMaterial - it hides the window frame
         ...(windowsBackgroundMaterial && {
@@ -528,6 +533,21 @@ export class WindowManager {
   getWindowByWebContentsId(wcId: number): BrowserWindow | null {
     const managed = this.windows.get(wcId)
     return managed?.window ?? null
+  }
+
+  setTitleBarOverlayTheme(wcId: number, isDark: boolean): void {
+    if (process.platform !== 'win32') return
+    const win = this.windows.get(wcId)?.window
+    if (!win || win.isDestroyed()) return
+    try {
+      win.setTitleBarOverlay({
+        color: '#00000000',
+        symbolColor: isDark ? '#f2efe9' : '#262421',
+        height: 44,
+      })
+    } catch {
+      // Ignore on platforms/windows without titleBarOverlay support
+    }
   }
 
   /**

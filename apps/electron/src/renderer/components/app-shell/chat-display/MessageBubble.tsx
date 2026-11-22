@@ -154,13 +154,17 @@ export function MessageBubble({
 
     const config = INFO_LEVELS[message.infoLevel || 'info']
     const Icon = config.icon
+    const displayContent =
+      message.content === 'Response interrupted'
+        ? t('chat.responseInterrupted', { defaultValue: '回复已中断' })
+        : message.content
 
     return (
       <div className={cn('flex min-h-7 min-w-0 select-none items-center gap-2 text-label', config.className)}>
         <span className="flex size-4 shrink-0 items-center justify-center">
           <Icon aria-hidden className={cn('size-3.5', config.iconClassName)} />
         </span>
-        <span className="min-w-0">{message.content}</span>
+        <span className="min-w-0">{displayContent}</span>
       </div>
     )
   }

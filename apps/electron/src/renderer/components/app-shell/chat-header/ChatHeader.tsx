@@ -12,7 +12,9 @@
 
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
-import { Info, MoreHorizontal, Pencil } from 'lucide-react'
+import { Folder, FolderOpen, GitBranch, Info, MoreHorizontal, Pencil } from 'lucide-react'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@craft-agent/ui'
+import type { GitStatusSummary } from '@craft-agent/shared/protocol'
 import { PanelHeaderCenterButton } from '@/components/ui/PanelHeaderCenterButton'
 import { RenameDialog } from '@/components/ui/rename-dialog'
 import { DropdownMenu, DropdownMenuTrigger, StyledDropdownMenuContent } from '@/components/ui/styled-dropdown'
@@ -23,6 +25,7 @@ import { useOpenTaskEditor } from '@/hooks/useOpenTaskEditor'
 import { cn } from '@/lib/utils'
 import { getSessionStatus } from '@/utils/session'
 import { PanelHeader } from '../PanelHeader'
+import { BrowserTabStrip } from '../../browser/BrowserTabStrip'
 import { SessionMenu } from '../SessionMenu'
 import { CompactSessionMenu } from '../CompactSessionMenu'
 import { SessionInfoPopover } from '../SessionInfoPopover'
@@ -62,6 +65,16 @@ export interface ChatHeaderProps {
   onSetPrAutoFix?: (enabled: boolean) => void
   /** The PR card opened or closed (details load while it is open) */
   onPrCardOpenChange?: (open: boolean) => void
+  /** Whether the on-demand session Files panel is expanded */
+  isFilesPanelOpen?: boolean
+  /** Toggle the on-demand session Files panel */
+  onToggleFilesPanel?: () => void
+  /** Live Git status summary for the session's repository */
+  gitStatus?: GitStatusSummary | null
+  /** Whether the right-hand Git Diff review drawer is currently active */
+  isDiffPanelOpen?: boolean
+  /** Toggle the right-hand Git Diff review drawer */
+  onToggleDiffPanel?: () => void
 }
 
 type DrawerState = { open: boolean; view: 'root' | 'status' }
@@ -93,6 +106,11 @@ function sameHeaderProps(prev: ChatHeaderProps, next: ChatHeaderProps): boolean 
     && prev.prWatchAutoFix === next.prWatchAutoFix
     && prev.onSetPrAutoFix === next.onSetPrAutoFix
     && prev.onPrCardOpenChange === next.onPrCardOpenChange
+    && prev.isFilesPanelOpen === next.isFilesPanelOpen
+    && prev.onToggleFilesPanel === next.onToggleFilesPanel
+    && prev.gitStatus === next.gitStatus
+    && prev.isDiffPanelOpen === next.isDiffPanelOpen
+    && prev.onToggleDiffPanel === next.onToggleDiffPanel
     && sameFields(prev.item, next.item)
 }
 
@@ -113,6 +131,11 @@ export const ChatHeader = React.memo(function ChatHeader({
   prWatchAutoFix,
   onSetPrAutoFix,
   onPrCardOpenChange,
+  isFilesPanelOpen = false,
+  onToggleFilesPanel,
+  gitStatus,
+  isDiffPanelOpen = false,
+  onToggleDiffPanel,
 }: ChatHeaderProps) {
   const { t } = useTranslation()
   const {
@@ -121,6 +144,7 @@ export const ChatHeader = React.memo(function ChatHeader({
     rightSidebarButton,
     sessionStatuses = [],
     labels = [],
+    projects = [],
     onRenameSession,
     onFlagSession,
     onUnflagSession,
@@ -219,6 +243,10 @@ export const ChatHeader = React.memo(function ChatHeader({
   // ("Design Audit · design-audit") was noise that competed with the title.
   const folderName = sessionFolderPath ? deriveSelectionFlags(workingDirectory, sessionFolderPath).folderName : undefined
   const meta = folderName ?? ''
+  const boundProject = React.useMemo(
+    () => (item?.projectId ? projects.find(project => project.id === item.projectId) : undefined),
+    [item?.projectId, projects],
+  )
   const codingMode = !!item?.codingMode
   const showPrChip = codingMode && !compact && isPrWatchVisible(prWatch)
   // The PR chip, measured by the label strip (state: it mounts after the strip's first layout)
@@ -226,7 +254,8 @@ export const ChatHeader = React.memo(function ChatHeader({
 
   const titleRow = (
     <div ref={setTitleRowEl} className="flex min-w-0 flex-1 items-center gap-1.5">
-      {item && sessionStatuses.length > 0 && (
+      {compact && item && sessionStatuses.length > 0 && (
+        <div className="titlebar-no-drag shrink-0 flex items-center">
         <ChatHeaderStatusButton
           sessionId={sessionId}
           statusId={getSessionStatus(item)}
@@ -235,10 +264,11 @@ export const ChatHeader = React.memo(function ChatHeader({
           onOpenCompact={compact ? (opener) => openDrawer('status', opener) : undefined}
           compactExpanded={drawer.open && drawer.view === 'status'}
         />
+        </div>
       )}
       {/* After the status glyph the title starts 10px from it, as row text does after a row glyph
           (-ml-2 absorbs the flex gap and the glyph button's inner padding) */}
-      <h1 className={cn('min-w-0 shrink font-sans text-label-lg font-semibold', item && sessionStatuses.length > 0 && '-ml-2')}>
+      <h1 className={cn('min-w-0 shrink font-sans text-label-lg font-medium text-foreground', compact && item && sessionStatuses.length > 0 && '-ml-2')}>
         <button
           type="button"
           onClick={openRename}
@@ -253,12 +283,43 @@ export const ChatHeader = React.memo(function ChatHeader({
         </button>
       </h1>
       {/* Truncates first: the title keeps its room until the meta has none left */}
-      {meta && !compact && (
-        <span className="min-w-0 shrink-[100] truncate text-label-sm text-tertiary" title={workingDirectory}>
-          {meta}
+      {boundProject && !meta && !compact && (
+        <span
+          className="inline-flex min-w-0 max-w-[140px] shrink-[40] items-center gap-1.5 rounded-full bg-fill-hover px-2 py-0.5 text-caption font-medium text-secondary"
+          title={boundProject.name}
+        >
+          <span
+            className="size-1.5 shrink-0 rounded-full"
+            style={{ backgroundColor: boundProject.color || 'var(--accent-solid)' }}
+            aria-hidden="true"
+          />
+          <span className="truncate">{boundProject.name}</span>
         </span>
       )}
+      {meta && !compact && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => {
+                if (workingDirectory) void window.electronAPI?.showInFolder(workingDirectory)
+              }}
+              className="titlebar-no-drag inline-flex h-6 min-w-0 max-w-[180px] shrink-[100] items-center gap-1 rounded-md px-1.5 text-label-sm text-tertiary transition-colors duration-micro hover:bg-fill-hover hover:text-foreground cursor-pointer"
+            >
+              <Folder className="size-3 shrink-0 opacity-75" aria-hidden="true" />
+              <span className="truncate">{meta}</span>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <span className="flex flex-col gap-0.5">
+              <span className="font-medium">{t('chat.projectFolder', { defaultValue: '项目目录' })}</span>
+              {workingDirectory && <span className="text-label-sm opacity-80">{workingDirectory}</span>}
+            </span>
+          </TooltipContent>
+        </Tooltip>
+      )}
       {showPrChip && prWatch && (
+        <div className="titlebar-no-drag shrink-0 flex items-center">
         <ChatHeaderPrChip
           sessionId={sessionId}
           state={prWatch}
@@ -272,8 +333,10 @@ export const ChatHeader = React.memo(function ChatHeader({
           onCardOpenChange={onPrCardOpenChange}
           onReserveElChange={setPrReserveEl}
         />
+        </div>
       )}
-      {item && !compact && (
+      {item && !compact && (item.labels?.length ?? 0) > 0 && (
+        <div className="titlebar-no-drag min-w-0 flex items-center">
         <ChatHeaderLabels
           item={item}
           labels={labels}
@@ -282,18 +345,79 @@ export const ChatHeader = React.memo(function ChatHeader({
           maxLabels={codingMode ? CHAT_HEADER_CODING_MAX_LABELS : undefined}
           reserveEl={showPrChip ? prReserveEl : null}
         />
+        </div>
       )}
     </div>
   )
 
   const moreLabel = t('session.actionsFor', { title })
   const actions = (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-0.5">
+      {!compact && (
+        <div className="mr-1 min-w-0">
+          <BrowserTabStrip activeSessionId={sessionId} maxVisibleBadges={2} />
+        </div>
+      )}
       {isTaskOrchestrator && (
         <PanelHeaderCenterButton
           icon={<Pencil className="h-4 w-4" />}
           tooltip={t('kanban.editTask')}
           onClick={handleEditTask}
+        />
+      )}
+      {item && !compact && gitStatus?.isRepo && onToggleDiffPanel && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={onToggleDiffPanel}
+              aria-pressed={isDiffPanelOpen}
+              className={cn(
+                'titlebar-no-drag inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] transition-colors duration-micro cursor-pointer',
+                'focus-visible:outline-2 focus-visible:outline-focus-ring focus-visible:-outline-offset-2',
+                isDiffPanelOpen
+                  ? 'bg-accent-tint text-accent font-medium'
+                  : gitStatus.files.length > 0
+                    ? 'bg-black/[0.04] dark:bg-white/[0.07] text-foreground hover:bg-black/[0.07] dark:hover:bg-white/[0.11]'
+                    : 'text-tertiary hover:bg-fill-hover hover:text-foreground',
+              )}
+            >
+              <GitBranch className="size-3.5 shrink-0 text-accent" aria-hidden="true" />
+              {gitStatus.branch && (
+                <span className="max-w-[96px] truncate font-medium">{gitStatus.branch}</span>
+              )}
+              {gitStatus.files.length > 0 && (
+                <span className="inline-flex items-center gap-1 font-mono text-[11px] tabular-nums">
+                  {gitStatus.totalAdditions > 0 && (
+                    <span className="text-emerald-600 dark:text-emerald-400">+{gitStatus.totalAdditions}</span>
+                  )}
+                  {gitStatus.totalDeletions > 0 && (
+                    <span className="text-rose-600 dark:text-rose-400">-{gitStatus.totalDeletions}</span>
+                  )}
+                  {gitStatus.totalAdditions === 0 && gitStatus.totalDeletions === 0 && (
+                    <span className="text-tertiary">{gitStatus.files.length}</span>
+                  )}
+                </span>
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            {gitStatus.files.length > 0
+              ? t('gitDiff.headerTooltipDirty', {
+                  count: gitStatus.files.length,
+                  defaultValue: `查看 ${gitStatus.files.length} 个文件的代码改动`,
+                })
+              : t('gitDiff.headerTooltipClean', { defaultValue: '查看 Git 改动面板' })}
+          </TooltipContent>
+        </Tooltip>
+      )}
+      {item && !compact && onToggleFilesPanel && (
+        <PanelHeaderCenterButton
+          icon={<FolderOpen className="h-4 w-4" />}
+          tooltip={t('chat.sessionFiles')}
+          aria-pressed={isFilesPanelOpen}
+          onClick={onToggleFilesPanel}
+          className={cn(isFilesPanelOpen && 'bg-accent-tint text-accent hover:bg-accent-tint hover:text-accent')}
         />
       )}
       {item && !compact && (
@@ -305,7 +429,7 @@ export const ChatHeader = React.memo(function ChatHeader({
           trigger={<PanelHeaderCenterButton icon={<Info className="h-4 w-4" />} aria-label={t('chat.sessionInfo')} />}
         />
       )}
-      {item && !compact && <ChatShareMenu item={item} />}
+      {item && !compact && Boolean(item.sharedUrl) && <ChatShareMenu item={item} />}
       {item && !compact && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -349,6 +473,7 @@ export const ChatHeader = React.memo(function ChatHeader({
         actions={actions}
         leadingAction={leadingAction}
         rightSidebarButton={compact && leadingAction ? undefined : rightSidebarButton}
+        className={!compact ? 'border-b border-subtle/70' : undefined}
       />
       {item && compact && (
         <>

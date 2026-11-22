@@ -1,6 +1,6 @@
-appId: com.lukilabs.craft-agent
-productName: Craft Agents
-copyright: Copyright © 2026 Craft Docs Ltd.
+appId: com.shiori.desktop
+productName: Shiori
+copyright: Copyright © 2026 Shiori
 
 electronVersion: "39.2.7"
 
@@ -14,6 +14,11 @@ directories:
 files:
   - dist/**/*
   - "!dist/renderer/src/**"
+  - "!dist/resources/bin/**"
+  - "!dist/resources/dmg-background*"
+  - "!dist/resources/icon.icns"
+  - "!dist/resources/icon.icon/**"
+  - "!dist/resources/Assets.car"
   - "!**/*.map"
   - package.json
   # Include Pi agent server subprocess for Pi SDK sessions
@@ -47,10 +52,7 @@ files:
   # Include bundled uv binary (platform-specific, only the relevant one ships per build)
   - resources/bin/darwin-arm64/**/*
   - resources/bin/darwin-x64/**/*
-  - resources/bin/win32-x64/**/*
   - resources/bin/linux-x64/**/*
-  # Include bundled Bun runtime (platform-specific, set by build script)
-  - vendor/bun/**/*
   # Exclude everything from node_modules (will use extraResources for SDK)
   - "!node_modules/**/*"
 
@@ -70,11 +72,6 @@ files:
 extraMetadata:
   main: dist/main.cjs
 
-# Auto-update: electron-updater fetches from this URL for update manifests (.yml files)
-publish:
-  provider: generic
-  url: https://thecraftagents.com/electron/latest
-
 # Disable ASAR to avoid decompression overhead and click delays
 asar: false
 
@@ -88,7 +85,7 @@ mac:
     # Required for macOS to list the app under Privacy & Security > Local Network
     # and prompt for permission. Without it the app is silently denied LAN access
     # and never appears in the privacy pane (craft-agents-oss#938).
-    NSLocalNetworkUsageDescription: "Craft Agents uses your local network to reach LAN addresses and devices you ask an agent to access, such as local servers or APIs."
+    NSLocalNetworkUsageDescription: "Shiori uses your local network to reach LAN addresses and devices you ask an agent to access, such as local servers or APIs."
   target:
     - target: dmg
       arch:
@@ -120,24 +117,24 @@ mac:
       to: messaging-whatsapp-worker/worker.cjs
   # Exclude binaries for other platforms
   files:
+    - vendor/bun/**/*
     - "!**/resources/bin/win32-*/**"
     - "!**/resources/bin/linux-*/**"
   # Use predictable naming for macOS packages (applies to zip; dmg uses its own config below)
-  artifactName: "Craft-Agents-${arch}.${ext}"
+  artifactName: "Shiori-${version}-${arch}.${ext}"
   # Code signing & notarization (disabled by default for local builds)
   # To enable: set CSC_LINK, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
   # notarize:
   #   teamId: ${APPLE_TEAM_ID}
 
 dmg:
-  # Use predictable naming: Craft-Agents-arm64.dmg, Craft-Agents-x64.dmg
-  artifactName: "Craft-Agents-${arch}.dmg"
+  artifactName: "Shiori-${version}-${arch}.dmg"
   # Custom background (multi-resolution TIFF with 1x+2x for retina support)
   background: resources/dmg-background.tiff
   # Use app icon as the mounted volume icon in Finder
   icon: resources/icon.icns
   iconSize: 80
-  title: "Craft Agents"
+  title: "Shiori"
   contents:
     - x: 130
       y: 200
@@ -155,19 +152,43 @@ win:
     - target: nsis
       arch:
         - x64
-  # Use predictable naming: Craft-Agents-x64.exe
-  artifactName: "Craft-Agents-${arch}.${ext}"
+    - target: zip
+      arch:
+        - x64
+  artifactName: "Shiori-${version}-win-${arch}.${ext}"
   files:
-    # Exclude binaries for other platforms
-    - "!**/resources/bin/darwin-*/**"
-    - "!**/resources/bin/linux-*/**"
-    # WORKAROUND: Exclude bun and uv from regular files on Windows.
-    # electron-builder's npm node module collector causes EBUSY errors when copying
-    # .exe files because it scans/locks files while simultaneously trying to copy them.
-    # Moving them to extraResources avoids this by copying before the collector runs.
-    # See: https://github.com/electron-userland/electron-builder/issues/8250
-    - "!vendor/bun/**/*"
-    - "!**/resources/bin/win32-x64/**"
+    - dist/**/*
+    - "!dist/renderer/src/**"
+    - "!dist/resources/bin/**"
+    - "!dist/resources/dmg-background*"
+    - "!dist/resources/icon.icns"
+    - "!dist/resources/icon.icon/**"
+    - "!dist/resources/Assets.car"
+    - "!**/*.map"
+    - package.json
+    - packages/shared/src/unified-network-interceptor.ts
+    - packages/shared/src/interceptor-common.ts
+    - packages/shared/src/feature-flags.ts
+    - packages/shared/src/interceptor-request-utils.ts
+    - resources/scripts/**/*
+    - resources/bin/markitdown
+    - resources/bin/markitdown.cmd
+    - resources/bin/pdf-tool
+    - resources/bin/pdf-tool.cmd
+    - resources/bin/xlsx-tool
+    - resources/bin/xlsx-tool.cmd
+    - resources/bin/doc-diff
+    - resources/bin/doc-diff.cmd
+    - resources/bin/img-tool
+    - resources/bin/img-tool.cmd
+    - resources/bin/docx-tool
+    - resources/bin/docx-tool.cmd
+    - resources/bin/pptx-tool
+    - resources/bin/pptx-tool.cmd
+    - resources/bin/ical-tool
+    - resources/bin/ical-tool.cmd
+    - "!node_modules/**/*"
+    - "!vendor/**/*"
   # Copy executables as extraResources to avoid EBUSY file locking (see comment above)
   extraResources:
     - from: node_modules/@anthropic-ai/claude-agent-sdk
@@ -185,21 +206,26 @@ win:
       to: messaging-whatsapp-worker/worker.cjs
 
 nsis:
-  oneClick: true
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Shiori
+  artifactName: "Shiori-Setup-${version}-${arch}.${ext}"
   # Per-user install to %LOCALAPPDATA%\Programs\ (not Program Files).
   # Bun subprocess cannot read/write files in Program Files due to Windows permissions.
   perMachine: false
-  deleteAppDataOnUninstall: true
+  deleteAppDataOnUninstall: false
 
 linux:
   icon: resources/icon.png
   category: Utility
-  maintainer: "Craft Docs Ltd. <support@craft.do>"
+  maintainer: "Shiori"
   target:
     - target: AppImage
       arch:
         - x64
-  artifactName: "Craft-Agents-${arch}.${ext}"
+  artifactName: "Shiori-${version}-${arch}.${ext}"
   extraResources:
     - from: node_modules/@anthropic-ai/claude-agent-sdk
       to: app/node_modules/@anthropic-ai/claude-agent-sdk
@@ -212,5 +238,6 @@ linux:
       to: messaging-whatsapp-worker/worker.cjs
   # Exclude binaries for other platforms
   files:
+    - vendor/bun/**/*
     - "!**/resources/bin/darwin-*/**"
     - "!**/resources/bin/win32-*/**"

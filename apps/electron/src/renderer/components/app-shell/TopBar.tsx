@@ -14,7 +14,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@craft-agent/ui"
 import { PanelLeftRounded } from "../icons/PanelLeftRounded"
 import { TopBarButton } from "../ui/TopBarButton"
 import { cn } from "@/lib/utils"
-import { isMac, isWebUI } from "@/lib/platform"
+import { isMac, isWindows, isWebUI } from "@/lib/platform"
 import { useActionLabel } from "@/actions"
 import {
   DropdownMenu,
@@ -60,6 +60,8 @@ interface TopBarProps {
   onAddBrowserPanel: () => void
   /** When true, hides controls that don't apply in compact/mobile layout */
   isCompact?: boolean
+  /** Whether the workspace switcher should be shown in the TopBar (hidden on desktop when unified sidebar is open) */
+  showWorkspaceSwitcher?: boolean
 }
 
 export function TopBar({
@@ -85,6 +87,7 @@ export function TopBar({
   onAddSessionPanel,
   onAddBrowserPanel,
   isCompact,
+  showWorkspaceSwitcher = true,
 }: TopBarProps) {
   const { t } = useTranslation()
   const [maxVisibleBrowserBadges, setMaxVisibleBrowserBadges] = useState(3)
@@ -146,7 +149,10 @@ export function TopBar({
           so the workspace pill doesn't run flush against the viewport edge. */}
       <div
         className="pointer-events-auto flex min-w-0 flex-1 items-center gap-0.5"
-        style={{ paddingLeft: menuLeftPadding, paddingRight: isCompact ? 12 : 0 }}
+        style={{
+          paddingLeft: menuLeftPadding,
+          paddingRight: isWindows && !isWebUI ? 144 : (isCompact ? 12 : 0),
+        }}
       >
         <div className="flex items-center gap-0.5">
         {!isCompact && (
@@ -200,28 +206,30 @@ export function TopBar({
             </>
           )}
 
-          <div className="min-w-0 flex-1">
-            {isCompact ? (
-              <CompactWorkspaceSwitcher
-                workspaces={workspaces}
-                activeWorkspaceId={activeWorkspaceId}
-                onSelect={onSelectWorkspace}
-                onWorkspaceCreated={onWorkspaceCreated}
-                onWorkspaceRemoved={onWorkspaceRemoved}
-                workspaceUnreadMap={workspaceUnreadMap}
-              />
-            ) : (
-              <WorkspaceSwitcher
-                variant="topbar"
-                workspaces={workspaces}
-                activeWorkspaceId={activeWorkspaceId}
-                onSelect={onSelectWorkspace}
-                onWorkspaceCreated={onWorkspaceCreated}
-                onWorkspaceRemoved={onWorkspaceRemoved}
-                workspaceUnreadMap={workspaceUnreadMap}
-              />
-            )}
-          </div>
+          {(isCompact || showWorkspaceSwitcher) && (
+            <div className="min-w-0 flex-1">
+              {isCompact ? (
+                <CompactWorkspaceSwitcher
+                  workspaces={workspaces}
+                  activeWorkspaceId={activeWorkspaceId}
+                  onSelect={onSelectWorkspace}
+                  onWorkspaceCreated={onWorkspaceCreated}
+                  onWorkspaceRemoved={onWorkspaceRemoved}
+                  workspaceUnreadMap={workspaceUnreadMap}
+                />
+              ) : (
+                <WorkspaceSwitcher
+                  variant="topbar"
+                  workspaces={workspaces}
+                  activeWorkspaceId={activeWorkspaceId}
+                  onSelect={onSelectWorkspace}
+                  onWorkspaceCreated={onWorkspaceCreated}
+                  onWorkspaceRemoved={onWorkspaceRemoved}
+                  workspaceUnreadMap={workspaceUnreadMap}
+                />
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -249,7 +257,8 @@ export function TopBar({
           </StyledDropdownMenuContent>
         </DropdownMenu>
 
-        {/* Help button */}
+        {/* Help button (only shown when external docs URL is configured) */}
+        {Boolean(getDocUrl('sources')) && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <TopBarButton aria-label={t("menu.helpAndDocs")}>
@@ -287,13 +296,9 @@ export function TopBar({
               <span className="flex-1">{t("settings.messaging.title")}</span>
               <Icons.ExternalLink className="h-3 w-3 text-tertiary" />
             </StyledDropdownMenuItem>
-            <StyledDropdownMenuSeparator />
-            <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl('https://thecraftagents.com/docs')}>
-              <Icons.ExternalLink className="h-3.5 w-3.5" />
-              <span className="flex-1">{t("menu.allDocumentation")}</span>
-            </StyledDropdownMenuItem>
           </StyledDropdownMenuContent>
         </DropdownMenu>
+        )}
       </div>
       )}
       </div>

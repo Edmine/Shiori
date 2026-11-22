@@ -3,7 +3,7 @@
  * Summaries provide quick context; "Learn more" opens the full docs.
  */
 
-const DOC_BASE_URL = 'https://thecraftagents.com/docs'
+const DOC_BASE_URL = ''
 
 export type DocFeature =
   | 'sources'
@@ -95,13 +95,13 @@ export const DOCS: Record<DocFeature, DocInfo> = {
     path: '/reference/config/config-file',
     title: 'App Settings',
     summary:
-      'Configure global app settings like your default model, authentication method, and workspace list. Settings are stored in ~/.craft-agent/config.json.',
+      'Configure global app settings like your default model, authentication method, and workspace list. Settings are stored in ~/.shiori/config.json.',
   },
   preferences: {
     path: '/reference/config/preferences',
     title: 'Preferences',
     summary:
-      'Personal preferences like your name, timezone, and language that help the agent personalize responses. Stored in ~/.craft-agent/preferences.json.',
+      'Personal preferences like your name, timezone, and language that help the agent personalize responses. Stored in ~/.shiori/preferences.json.',
   },
   automations: {
     path: '/automations/overview',
@@ -121,6 +121,7 @@ export const DOCS: Record<DocFeature, DocInfo> = {
  * Get the full documentation URL for a feature
  */
 export function getDocUrl(feature: DocFeature): string {
+  if (!DOC_BASE_URL) return ''
   return `${DOC_BASE_URL}${DOCS[feature].path}`
 }
 

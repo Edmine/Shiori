@@ -38,6 +38,12 @@ export interface EntityListGroup<T> {
   collapsible?: boolean
   /** Number of hidden items when collapsed. Present on collapsed placeholder groups (items will be []). */
   collapsedCount?: number
+  /** Optional leading icon rendered before the group label */
+  icon?: React.ReactNode
+  /** Optional native title/tooltip on the group header (e.g. full folder path) */
+  tooltip?: string
+  /** Optional trailing action (e.g. hover '+' button to create a new session in this group) */
+  action?: React.ReactNode
 }
 
 export interface EntityListProps<T> {
@@ -87,12 +93,26 @@ const GROUP_GAP = 'mt-2'
  * frost on scenic themes. The space that ties a header to its own rows sits outside the box, as the
  * gap between groups (GROUP_GAP).
  */
-function SectionHeader({ label }: { label: string }) {
+function SectionHeader({
+  label,
+  icon,
+  tooltip,
+  action,
+}: {
+  label: string
+  icon?: React.ReactNode
+  tooltip?: string
+  action?: React.ReactNode
+}) {
   return (
-    <div data-slot="list-group-header" className="sticky top-0 z-sticky flex h-8 items-center px-gutter bg-paper">
-      <span className="text-label-sm font-medium text-tertiary truncate">
-        {label}
-      </span>
+    <div
+      data-slot="list-group-header"
+      title={tooltip}
+      className="sticky top-0 z-sticky flex h-7 items-center gap-1.5 px-gutter group/header bg-[var(--list-surface,var(--surface-paper))]"
+    >
+      {icon && <span className="shrink-0 text-tertiary flex items-center">{icon}</span>}
+      <span className="flex-1 min-w-0 text-label-sm font-medium text-tertiary truncate">{label}</span>
+      {action && <div className="shrink-0 flex items-center">{action}</div>}
     </div>
   )
 }
@@ -100,6 +120,9 @@ function SectionHeader({ label }: { label: string }) {
 /** Collapsible group header with chevron toggle and item count when collapsed */
 function CollapsibleGroupHeader({
   label,
+  icon,
+  tooltip,
+  action,
   isCollapsed,
   itemCount,
   onToggle,
@@ -107,6 +130,9 @@ function CollapsibleGroupHeader({
   onExpandAll,
 }: {
   label: string
+  icon?: React.ReactNode
+  tooltip?: string
+  action?: React.ReactNode
   isCollapsed: boolean
   itemCount: number
   onToggle: () => void
@@ -116,27 +142,33 @@ function CollapsibleGroupHeader({
   return (
     <ContextMenu modal>
       <ContextMenuTrigger asChild>
-        <button
-          onClick={onToggle}
-          aria-expanded={!isCollapsed}
+        <div
           data-slot="list-group-header"
+          title={tooltip}
           // z-sticky: the header covers the full row width while rows (and their project stripes) scroll under it
-          className="sticky top-0 z-sticky w-full h-8 px-gutter flex items-center gap-1 cursor-pointer group/header bg-paper -outline-offset-2"
+          className="sticky top-0 z-sticky w-full h-7 px-gutter flex items-center gap-1 group/header bg-[var(--list-surface,var(--surface-paper))]"
         >
           <div className="absolute inset-0 transition-[background-color] duration-micro ease-out-subtle group-hover/header:bg-fill-hover group-hover/header:duration-instant pointer-events-none" />
-          {/* The label starts on the panel gutter, like the panel title and the row glyphs; the
-              disclosure chevron trails it (pointing down while expanded, right while collapsed). */}
-          <span className="relative text-label-sm font-medium text-tertiary truncate">
-            {label}{isCollapsed && <span className="tabular-nums"> · {itemCount}</span>}
-          </span>
-          <ChevronRight
-            aria-hidden="true"
-            className={cn(
-              "relative size-3 shrink-0 text-tertiary transition-transform duration-(--spring-snap-dur) ease-(--spring-snap)",
-              !isCollapsed && "rotate-90"
-            )}
-          />
-        </button>
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={!isCollapsed}
+            className="relative flex-1 min-w-0 h-full flex items-center gap-1.5 cursor-pointer text-left -outline-offset-2"
+          >
+            {icon && <span className="shrink-0 text-tertiary flex items-center">{icon}</span>}
+            <span className="text-label-sm font-medium text-tertiary group-hover/header:text-secondary truncate transition-colors">
+              {label}{isCollapsed && <span className="tabular-nums"> · {itemCount}</span>}
+            </span>
+            <ChevronRight
+              aria-hidden="true"
+              className={cn(
+                "size-3 shrink-0 text-tertiary transition-transform duration-(--spring-snap-dur) ease-(--spring-snap)",
+                !isCollapsed && "rotate-90"
+              )}
+            />
+          </button>
+          {action && <div className="relative shrink-0 flex items-center">{action}</div>}
+        </div>
       </ContextMenuTrigger>
       <StyledContextMenuContent>
         <StyledContextMenuItem onClick={onToggle}>
@@ -210,6 +242,9 @@ export function EntityList<T>({
                       {group.collapsible && onToggleCollapse ? (
                         <CollapsibleGroupHeader
                           label={group.label}
+                          icon={group.icon}
+                          tooltip={group.tooltip}
+                          action={group.action}
                           isCollapsed={!!isCollapsed}
                           itemCount={isCollapsed ? (group.collapsedCount ?? 0) : group.items.length}
                           onToggle={() => onToggleCollapse(group.key)}
@@ -217,7 +252,12 @@ export function EntityList<T>({
                           onExpandAll={onExpandAll}
                         />
                       ) : (
-                        <SectionHeader label={group.label} />
+                        <SectionHeader
+                          label={group.label}
+                          icon={group.icon}
+                          tooltip={group.tooltip}
+                          action={group.action}
+                        />
                       )}
                       {group.items.map((item, indexInGroup) =>
                         <React.Fragment key={getKey(item)}>

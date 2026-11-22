@@ -337,6 +337,7 @@ export function ThemeProvider({
     const effectiveMode = (isScenic || isDarkOnlyTheme) ? 'dark' : resolvedMode
     root.classList.remove('light', 'dark')
     root.classList.add(effectiveMode)
+    window.electronAPI?.setTitleBarOverlayTheme?.(effectiveMode === 'dark')
 
     // The canvas is translucent (data-vibrancy) only over a native vibrancy/Mica material whose
     // appearance matches what we paint: the material follows the OS, so a mode that differs from

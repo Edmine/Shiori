@@ -42,8 +42,9 @@ export function HeaderMenu({ route, children, helpFeature }: HeaderMenuProps) {
     }
   }
 
-  const handleLearnMore = helpFeature ? () => {
-    window.electronAPI?.openUrl(getDocUrl(helpFeature))
+  const helpDocUrl = helpFeature ? getDocUrl(helpFeature) : ''
+  const handleLearnMore = helpDocUrl ? () => {
+    window.electronAPI?.openUrl(helpDocUrl)
   } : undefined
 
   return (
@@ -58,7 +59,7 @@ export function HeaderMenu({ route, children, helpFeature }: HeaderMenuProps) {
           <AppWindow className="h-3.5 w-3.5" />
           <span className="flex-1">{t("sessionMenu.openInNewWindow")}</span>
         </StyledDropdownMenuItem>
-        {helpFeature && (
+        {helpDocUrl && (
           <>
             <StyledDropdownMenuSeparator />
             <StyledDropdownMenuItem onClick={handleLearnMore}>

@@ -114,17 +114,21 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const focusNextZone = useCallback(() => {
-    const currentIndex = focusState.zone ? ZONE_ORDER.indexOf(focusState.zone) : -1
-    const nextIndex = (currentIndex + 1) % ZONE_ORDER.length
+    const activeOrder = ZONE_ORDER.filter(id => zonesRef.current.has(id))
+    if (activeOrder.length === 0) return
+    const currentIndex = focusState.zone ? activeOrder.indexOf(focusState.zone) : -1
+    const nextIndex = (currentIndex + 1) % activeOrder.length
     // Tab navigation is explicit keyboard intent - always move focus
-    focusZone(ZONE_ORDER[nextIndex], { intent: 'keyboard', moveFocus: true })
+    focusZone(activeOrder[nextIndex], { intent: 'keyboard', moveFocus: true })
   }, [focusState.zone, focusZone])
 
   const focusPreviousZone = useCallback(() => {
-    const currentIndex = focusState.zone ? ZONE_ORDER.indexOf(focusState.zone) : 0
-    const prevIndex = (currentIndex - 1 + ZONE_ORDER.length) % ZONE_ORDER.length
+    const activeOrder = ZONE_ORDER.filter(id => zonesRef.current.has(id))
+    if (activeOrder.length === 0) return
+    const currentIndex = focusState.zone ? activeOrder.indexOf(focusState.zone) : 0
+    const prevIndex = (currentIndex - 1 + activeOrder.length) % activeOrder.length
     // Shift+Tab navigation is explicit keyboard intent - always move focus
-    focusZone(ZONE_ORDER[prevIndex], { intent: 'keyboard', moveFocus: true })
+    focusZone(activeOrder[prevIndex], { intent: 'keyboard', moveFocus: true })
   }, [focusState.zone, focusZone])
 
   const isZoneFocused = useCallback((id: FocusZoneId) => {

@@ -51,7 +51,7 @@ import type { PresetTheme } from '@config/theme'
  * Preset tiles the theme grid reserves while presets load: the bundled presets on the first visit,
  * then the last count seen — so the grid keeps its rows and nothing below it shifts.
  */
-let lastPresetTileCount = 16
+let lastPresetTileCount = 15
 
 export const meta: DetailsPageMeta = {
   navigator: 'settings',
@@ -317,7 +317,7 @@ export default function AppearanceSettingsPage() {
   const themeGridOptions = useMemo<ThemeGridOption[]>(() => [
     { value: 'default', label: t("common.default") },
     ...presetThemes
-      .filter(p => p.id !== 'default')
+      .filter(p => p.id !== 'default' && p.id !== 'craft')
       .map(p => ({ value: p.id, label: p.theme.name || p.id, theme: p.theme })),
   ], [presetThemes, t])
 
@@ -414,7 +414,7 @@ export default function AppearanceSettingsPage() {
                     options={[
                       { value: 'default', label: appDefaultLabel ? t("settings.appearance.useDefaultWithTheme", { theme: appDefaultLabel }) : t("settings.appearance.useDefault") },
                       ...presetThemes
-                        .filter(t => t.id !== 'default')
+                        .filter(t => t.id !== 'default' && t.id !== 'craft')
                         .map(t => ({
                           value: t.id,
                           label: t.theme.name || t.id,

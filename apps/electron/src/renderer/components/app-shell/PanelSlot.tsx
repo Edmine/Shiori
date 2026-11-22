@@ -92,7 +92,9 @@ export function PanelSlot({
   }, [closePanel, entry.id])
 
   // Build close button for PanelHeader (via context override)
+  // Single-panel desktop sessions are full-bleed; only multi-panel splits need a panel close control.
   const closeButton = useMemo(() => {
+    if (isOnly && !isCompact) return undefined
     return (
       <PanelHeaderCenterButton
         icon={<X className="h-4 w-4" />}
@@ -100,7 +102,7 @@ export function PanelSlot({
         tooltip={t("common.close")}
       />
     )
-  }, [handleClose, t])
+  }, [handleClose, isOnly, isCompact, t])
 
   // Build back button for compact mode — closes the panel to reveal the session list.
   // Same PanelHeaderCenterButton style as X and share, just on the left side.
@@ -122,10 +124,11 @@ export function PanelSlot({
   const contextOverride = useMemo(() => ({
     ...parentContext,
     rightSidebarButton: closeButton,
-    leadingAction: backButton,
+    leadingAction: isCompact ? backButton : (isAtLeftEdge ? parentContext.leadingAction : undefined),
     isFocusedPanel,
+    isAtRightEdge,
     panelId: entry.id,
-  }), [parentContext, closeButton, backButton, isFocusedPanel, entry.id])
+  }), [parentContext, closeButton, backButton, isCompact, isAtLeftEdge, isAtRightEdge, isFocusedPanel, entry.id])
 
   const handlePointerDown = useCallback(() => {
     if (!isFocusedPanel) {
@@ -135,11 +138,13 @@ export function PanelSlot({
 
   // Corner radii: edge corners (touching window boundary) vs interior corners; the corners that
   // meet the list are square. Compact mode panels run flush to the viewport floor — no rounded bottom.
-  const radii: React.CSSProperties = {
+  const radii: React.CSSProperties = isCompact ? {
     borderTopLeftRadius: isJoinedToNavigator ? 0 : RADIUS_INNER,
-    borderBottomLeftRadius: isCompact || isJoinedToNavigator ? 0 : (isAtLeftEdge ? RADIUS_EDGE : RADIUS_INNER),
+    borderBottomLeftRadius: 0,
     borderTopRightRadius: RADIUS_INNER,
-    borderBottomRightRadius: isCompact ? 0 : (isAtRightEdge ? RADIUS_EDGE : RADIUS_INNER),
+    borderBottomRightRadius: 0,
+  } : {
+    borderRadius: 0,
   }
   // In a split view the focused panel is lifted; the others stay flat.
   const isLifted = !isOnly && isFocusedPanel
@@ -178,7 +183,12 @@ export function PanelSlot({
           aria-hidden="true"
           className={cn(
             'shell-card absolute inset-0 -z-10 pointer-events-none bg-paper',
-            isLifted ? 'shadow-elev-2' : 'shadow-elev-0',
+            isCompact
+              ? 'shadow-elev-0'
+              : [
+                  !isOnly && !isAtLeftEdge && 'border-l border-subtle',
+                  isLifted && 'shadow-elev-2',
+                ],
           )}
           style={radii}
         />

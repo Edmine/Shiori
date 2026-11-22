@@ -132,6 +132,8 @@ export interface EntityRowProps {
   onClick?: () => void
   /** @deprecated Every row draws its own hairline now (mail-style); kept for API compatibility, renders nothing. */
   showSeparator?: boolean
+  /** Visual style: 'default' (full-bleed mail-style row) or 'sidebar' (inset rounded row for unified sidebar) */
+  variant?: 'default' | 'sidebar'
 
   // --- Menu ---
   /** Menu content — rendered in BOTH dropdown and context menu via providers.
@@ -189,6 +191,7 @@ export function EntityRow({
   suppressSelectionBar = false,
   onMouseDown,
   onClick,
+  variant = 'default',
   menuContent,
   contextMenuContent,
   hideMoreButton = false,
@@ -340,18 +343,26 @@ export function EntityRow({
   // hairline below each row starts at that text edge and runs to the panel edge (hidden on the selected
   // row, whose fill already separates it). A nested row (`depth`) moves the glyph, the text and the
   // hairline's start in by `--row-indent`.
+  const isSidebarVariant = variant === 'sidebar'
+
   const innerContent = (
     <div
       className={cn(
         "relative group select-none",
-        "after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:h-px after:bg-separator in-data-[selected]:after:hidden",
-        icon ? "after:left-[calc(var(--gutter)+26px+var(--row-indent,0px))]" : "after:left-[calc(var(--gutter)+var(--row-indent,0px))]",
+        isSidebarVariant
+          ? "px-2 py-[1px]"
+          : [
+              "after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:h-px after:bg-separator in-data-[selected]:after:hidden",
+              icon ? "after:left-[calc(var(--gutter)+26px+var(--row-indent,0px))]" : "after:left-[calc(var(--gutter)+var(--row-indent,0px))]",
+            ],
       )}
       style={indentStyle}
     >
-      {/* Multi-select marker. Single selection is the row fill alone; suppressed when an outer
-          wrapper draws its own leading stripe (e.g. project color) at the same edge. */}
-      {isInMultiSelect && !suppressSelectionBar && (
+      {/* Selection / multi-select marker. In sidebar variant, active selection gets a delicate 2px accent hairline. */}
+      {!suppressSelectionBar && isSidebarVariant && (isSelected || isInMultiSelect) && (
+        <div className="pointer-events-none absolute left-2 top-2 bottom-2 z-[2] w-[2px] rounded-full bg-accent-solid/85" />
+      )}
+      {!suppressSelectionBar && !isSidebarVariant && isInMultiSelect && (
         <div className="absolute left-0 inset-y-0 w-[3px] bg-accent-solid" />
       )}
 
@@ -359,13 +370,26 @@ export function EntityRow({
       <button
         {...(buttonProps as React.ButtonHTMLAttributes<HTMLButtonElement>)}
         className={cn(
-          "entity-row-btn flex w-full items-start py-[9px] px-gutter text-left text-label -outline-offset-2",
-          // Hover-in instant, hover-out 100ms
-          "transition-[background-color] duration-micro ease-out-subtle hover:duration-instant",
-          (isSelected || isInMultiSelect)
-            ? "bg-fill-selected"
-            : "hover:bg-fill-hover",
-          indentLevels > 0 && "pl-[calc(var(--gutter)+var(--row-indent))]",
+          "entity-row-btn flex w-full items-start text-left text-label -outline-offset-2",
+          "focus-visible:outline-2 focus-visible:outline-focus-ring",
+          isSidebarVariant
+            ? [
+                "rounded-lg px-2.5 py-[6.5px]",
+                "transition-[background-color,color] duration-micro ease-out-subtle hover:duration-instant",
+                (isSelected || isInMultiSelect)
+                  ? "bg-black/[0.06] text-foreground dark:bg-white/[0.09]"
+                  : "text-secondary hover:bg-black/[0.035] hover:text-foreground dark:hover:bg-white/[0.05]",
+                indentLevels > 0 && "pl-[calc(10px+var(--row-indent))]",
+              ]
+            : [
+                "py-[9px] px-gutter",
+                // Hover-in instant, hover-out 100ms
+                "transition-[background-color] duration-micro ease-out-subtle hover:duration-instant",
+                (isSelected || isInMultiSelect)
+                  ? "bg-fill-selected"
+                  : "hover:bg-fill-hover",
+                indentLevels > 0 && "pl-[calc(var(--gutter)+var(--row-indent))]",
+              ],
           // Touch: the always-visible actions button sits at the right edge (its 36px box + 6px inset)
           hasMoreButton && useCompactMenu && "pr-11",
           (buttonProps as Record<string, unknown>)?.className as string | undefined,
@@ -389,8 +413,9 @@ export function EntityRow({
               </div>
             )}
             <div data-slot="entity-row-title" className={cn(
-              "font-sans min-w-0 text-foreground",
-              titleTrailing ? "truncate" : "line-clamp-2",
+              "font-sans min-w-0",
+              isSidebarVariant ? (isSelected ? "text-foreground" : "text-foreground/85 group-hover:text-foreground") : "text-foreground",
+              (titleTrailing || isSidebarVariant) ? "truncate" : "line-clamp-2",
               titleClassName,
             )}>
               {title}
@@ -486,7 +511,11 @@ export function EntityRow({
             "absolute z-10 flex items-center",
             // Either way the glyph lands 16px from the panel edge, on the gutter: 24px desktop button at 12px,
             // 36px touch button at 6px.
-            useCompactMenu ? "right-1.5 top-1/2 -translate-y-1/2" : "right-3 top-1.5",
+            useCompactMenu
+              ? "right-1.5 top-1/2 -translate-y-1/2"
+              : isSidebarVariant
+                ? "right-3.5 top-1.5"
+                : "right-3 top-1.5",
             anyMenuOpen || useCompactMenu
               ? "opacity-100"
               : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto",

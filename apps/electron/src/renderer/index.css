@@ -638,7 +638,13 @@ html.dark[data-scenic] .fullscreen-overlay-background {
    fixed so the App content area reads the same variable for its padding-top.
    ========================================================================== */
 :root {
-  --topbar-height: 44px;
+  --topbar-height: 0px;
+}
+
+/* Keep Shiori's warm-gray navigator surface crisp and consistent on Windows Mica,
+   preventing dark desktop bleed-through in light mode and matching sticky list headers. */
+html[data-vibrancy="mica"] {
+  background: var(--surface-navigator);
 }
 @media (max-width: 768px) {
   :root {

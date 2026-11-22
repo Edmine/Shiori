@@ -35,15 +35,12 @@ function UsageRing({ percent }: { percent: number }) {
   )
 }
 
-/**
- * Context usage meter (mockup `.ctx`): a quiet 28px chip in the info tint — it only appears at
- * high usage (getContextDisplay.showWarning). Same math, same visibility and the same
- * compact-on-click action as before; the percent may exceed 100%.
- */
 export function ContextUsageChip({ display, labels, isProcessing, showMeter = true, onCompact }: ContextUsageChipProps) {
   const { t } = useTranslation()
-  if (!display.showWarning || display.percent === null) return null
+  if (display.percent === null || display.isStale) return null
   const actionable = !isProcessing && display.canCompact
+  const isCritical = display.percent >= 85 || display.showWarning
+  const isElevated = !isCritical && display.percent >= 70
 
   return (
     <Tooltip>
@@ -56,13 +53,16 @@ export function ContextUsageChip({ display, labels, isProcessing, showMeter = tr
           disabled={!actionable}
           aria-label={`${labels.window}: ${display.percent}%`}
           className={cn(
-            'input-toolbar-btn motion-press inline-flex h-control shrink-0 items-center justify-center gap-1.5 rounded-full px-2.5',
-            showMeter && 'pl-2 @max-[32rem]/panel:pl-2.5',
-            'bg-info-tint text-label-sm font-medium tabular-nums text-info select-none',
+            'input-toolbar-btn motion-press inline-flex h-control shrink-0 items-center justify-center gap-1.5 rounded-full px-2',
+            'text-label-sm tabular-nums select-none transition-colors duration-micro',
+            isCritical
+              ? 'bg-info-tint font-medium text-info'
+              : isElevated
+                ? 'bg-amber-500/12 font-medium text-amber-700 dark:text-amber-300'
+                : 'bg-black/[0.03] dark:bg-white/[0.05] text-tertiary hover:text-secondary',
             actionable ? 'state-overlay' : 'cursor-default',
           )}
         >
-          {/* The ring is decoration next to the percent: dropped in narrow panels to save toolbar room */}
           {showMeter && <span className="flex @max-[32rem]/panel:hidden"><UsageRing percent={display.percent} /></span>}
           {display.percent}%
         </button>

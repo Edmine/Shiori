@@ -21,11 +21,16 @@ import { join, dirname, basename, relative } from 'path';
 import { platform } from 'os';
 import type { FSWatcher } from 'fs';
 import { CONFIG_DIR } from './paths.ts';
+import {
+  ensureShioriDir,
+  SHIORI_DIR,
+  SHIORI_MAGPIE_FILENAME,
+} from './magpie-bridge.ts';
 import { debug } from '../utils/debug.ts';
 import { expandPath } from '../utils/paths.ts';
 import { readJsonFileSync } from '../utils/files.ts';
 import { perf } from '../utils/perf.ts';
-import { loadStoredConfig, type StoredConfig } from './storage.ts';
+import { getLlmConnections, loadStoredConfig, type StoredConfig } from './storage.ts';
 import {
   validateConfig,
   validatePreferences,
@@ -284,6 +289,10 @@ export class ConfigWatcher {
     this.watchGlobalConfigs();
     span.mark('watchGlobalConfigs');
 
+    // Watch ~/.shiori/magpie.json for live Magpie bridge updates
+    this.watchMagpieBridge();
+    span.mark('watchMagpieBridge');
+
     // Watch workspace directory recursively
     this.watchWorkspaceDir();
     span.mark('watchWorkspaceDir');
@@ -318,11 +327,8 @@ export class ConfigWatcher {
    * Initialize LLM connections hash for change detection
    */
   private initLlmConnectionsHash(): void {
-    const config = loadStoredConfig();
-    if (config) {
-      const connections = config.llmConnections || [];
-      this.lastLlmConnectionsHash = JSON.stringify(connections);
-    }
+    const connections = getLlmConnections();
+    this.lastLlmConnectionsHash = JSON.stringify(connections);
   }
 
   /**
@@ -395,6 +401,25 @@ export class ConfigWatcher {
       debug('[ConfigWatcher] Watching global configs:', CONFIG_DIR);
     } catch (error) {
       debug('[ConfigWatcher] Error watching global configs:', error);
+    }
+  }
+
+  /**
+   * Watch ~/.shiori for Magpie plugin bridge updates (magpie.json)
+   */
+  private watchMagpieBridge(): void {
+    ensureShioriDir();
+    try {
+      const watcher = watch(SHIORI_DIR, (_eventType, filename) => {
+        if (!filename || filename === SHIORI_MAGPIE_FILENAME) {
+          this.debounce('shiori-magpie', () => this.handleMagpieBridgeChange());
+        }
+      });
+
+      this.watchers.push(watcher);
+      debug('[ConfigWatcher] Watching Shiori Magpie bridge:', SHIORI_DIR);
+    } catch (error) {
+      debug('[ConfigWatcher] Error watching Shiori Magpie bridge:', error);
     }
   }
 
@@ -875,7 +900,7 @@ export class ConfigWatcher {
 
       // Check for LLM connections changes
       // Use JSON hash comparison for deep equality check
-      const connections = config.llmConnections || [];
+      const connections = getLlmConnections();
       const currentHash = JSON.stringify(connections);
       if (currentHash !== this.lastLlmConnectionsHash) {
         debug('[ConfigWatcher] LLM connections changed');
@@ -884,6 +909,24 @@ export class ConfigWatcher {
       }
     } else {
       this.callbacks.onError?.('config.json', new Error('Failed to load config'));
+    }
+  }
+
+  /**
+   * Handle ~/.shiori/magpie.json change
+   */
+  private handleMagpieBridgeChange(): void {
+    debug('[ConfigWatcher] magpie.json changed');
+    const connections = getLlmConnections();
+    const currentHash = JSON.stringify(connections);
+    if (currentHash !== this.lastLlmConnectionsHash) {
+      debug('[ConfigWatcher] LLM connections changed via Magpie bridge');
+      this.lastLlmConnectionsHash = currentHash;
+      this.callbacks.onLlmConnectionsChange?.(connections);
+    }
+    const config = loadStoredConfig();
+    if (config) {
+      this.callbacks.onConfigChange?.(config);
     }
   }
 

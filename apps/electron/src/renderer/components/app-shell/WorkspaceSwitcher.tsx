@@ -206,10 +206,11 @@ export function WorkspaceSwitcher({
                 workspaceId={selectedWorkspace?.id}
                 workspaceName={selectedWorkspace?.name}
                 src={selectedWorkspace ? workspaceIconMap.get(selectedWorkspace.id) : undefined}
-                className="size-5 rounded-sm shadow-elev-0"
-                fallbackClassName="rounded-sm"
+                tone="neutral"
+                className="size-5 rounded-[5px]"
+                fallbackClassName="rounded-[5px]"
               />
-              <span className="truncate min-w-0 text-left">{selectedWorkspace?.name || 'Workspace'}</span>
+              <span className="truncate min-w-0 text-left">{selectedWorkspace?.name || t('settings.workspace.title')}</span>
               {selectedWorkspace?.remoteServer && (
                 isRemoteDisconnected(selectedWorkspace.id)
                   ? <CloudOff className="size-3.5 text-destructive shrink-0" />
@@ -220,10 +221,12 @@ export function WorkspaceSwitcher({
             </button>
           ) : (
             <button
+              type="button"
+              data-workspace-switcher="sidebar"
               className={cn(
-                "flex items-center gap-1 w-full min-w-0 justify-start px-2 py-1.5 rounded-md",
-                "text-foreground hover:bg-foreground/5 data-[state=open]:bg-foreground/5 transition-colors duration-150",
-                "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                "flex items-center gap-2 w-full min-w-0 h-7 justify-start px-1.5 rounded-md cursor-pointer",
+                "text-foreground hover:bg-fill-hover data-[state=open]:bg-fill-hover transition-[background-color] duration-micro",
+                "focus-visible:outline-2 focus-visible:outline-focus-ring focus-visible:-outline-offset-2",
                 isCollapsed && "h-9 w-9 shrink-0 justify-center p-0"
               )}
               aria-label={t('workspace.selectWorkspace')}
@@ -232,20 +235,24 @@ export function WorkspaceSwitcher({
                 workspaceId={selectedWorkspace?.id}
                 workspaceName={selectedWorkspace?.name}
                 src={selectedWorkspace ? workspaceIconMap.get(selectedWorkspace.id) : undefined}
-                className="h-4 w-4 rounded-full ring-1 ring-border/50"
-                fallbackClassName="rounded-full"
+                tone="neutral"
+                className="size-5 rounded-[5px] shrink-0"
+                fallbackClassName="rounded-[5px]"
               />
               {!isCollapsed && (
                 <>
-                  <FadingText className="ml-1 font-sans min-w-0 text-sm" fadeWidth={36}>
-                    {selectedWorkspace?.name || 'Select workspace'}
+                  <FadingText className="font-sans min-w-0 flex-1 text-left text-label font-medium text-foreground" fadeWidth={24}>
+                    {selectedWorkspace?.name || t('workspace.selectWorkspace')}
                   </FadingText>
                   {selectedWorkspace?.remoteServer && (
                     isRemoteDisconnected(selectedWorkspace.id)
-                      ? <CloudOff className="h-3 w-3 text-destructive shrink-0" />
-                      : <Cloud className="h-3 w-3 text-muted-foreground shrink-0" />
+                      ? <CloudOff className="size-3.5 text-destructive shrink-0" />
+                      : <Cloud className="size-3.5 text-tertiary shrink-0" />
                   )}
-                  <ChevronDown className="h-3 w-3 opacity-50 shrink-0" />
+                  {hasUnreadInOtherWorkspaces && (
+                    <span className="size-1.5 rounded-full bg-accent-solid shrink-0" />
+                  )}
+                  <ChevronDown className="size-3.5 text-tertiary shrink-0" />
                 </>
               )}
             </button>
@@ -259,6 +266,15 @@ export function WorkspaceSwitcher({
           // The remove dialog takes focus; don't pull it back to the trigger
           onCloseAutoFocus={(event) => { if (pendingRemoval) event.preventDefault() }}
         >
+          <div className="px-2.5 pt-1.5 pb-1">
+            <div className="text-[11px] font-medium text-tertiary">
+              {t('workspace.switcherHeader', { defaultValue: '工作区' })}
+            </div>
+            <div className="text-[11px] leading-snug text-tertiary/80">
+              {t('workspace.switcherHint', { defaultValue: '用于隔离会话历史、模型与扩展配置' })}
+            </div>
+          </div>
+          <StyledDropdownMenuSeparator />
           {workspaces.map((workspace) => {
             const disconnected = isRemoteDisconnected(workspace.id)
             return (
@@ -286,8 +302,9 @@ export function WorkspaceSwitcher({
                     workspaceId={workspace.id}
                     workspaceName={workspace.name}
                     src={workspaceIconMap.get(workspace.id)}
-                    className="h-5 w-5 rounded-full ring-1 ring-border/50"
-                    fallbackClassName="rounded-full text-xs"
+                    tone="neutral"
+                    className="h-5 w-5 rounded-[5px]"
+                    fallbackClassName="rounded-[5px] text-[10px]"
                   />
                   <span className="truncate">{workspace.name}</span>
                   {workspace.remoteServer && (

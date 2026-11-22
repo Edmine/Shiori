@@ -58,6 +58,8 @@ pnpm-lock.yaml
 
 # Craft Agent local data (sessions, credentials, config)
 .craft-agent/
+.shiori/
+.local/
 
 # SSH keys and secrets
 *.pem

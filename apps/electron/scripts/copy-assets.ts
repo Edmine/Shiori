@@ -11,7 +11,7 @@
  * Run: bun scripts/copy-assets.ts
  */
 
-import { cpSync, copyFileSync, mkdirSync } from 'fs';
+import { cpSync, copyFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
 // Copy all resources (icons, themes, docs, permissions, tool-icons, etc.)
@@ -30,4 +30,15 @@ try {
 } catch (err) {
   // Only warn - PowerShell validation is optional on non-Windows platforms
   console.log('⚠ powershell-parser.ps1 copy skipped (not critical on non-Windows)');
+}
+
+// Copy bundled pi-agent-server so packaged apps resolve dist/resources/pi-agent-server/index.js
+const piServerSrc = join('..', '..', 'packages', 'pi-agent-server', 'dist', 'index.js');
+const piServerDestDir = join('dist', 'resources', 'pi-agent-server');
+if (existsSync(piServerSrc)) {
+  mkdirSync(piServerDestDir, { recursive: true });
+  copyFileSync(piServerSrc, join(piServerDestDir, 'index.js'));
+  console.log('✓ Copied pi-agent-server/dist/index.js → dist/resources/pi-agent-server/index.js');
+} else {
+  console.log('⚠ pi-agent-server/dist/index.js not found — run electron:build:main first');
 }

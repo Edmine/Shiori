@@ -147,7 +147,7 @@ export function AddWorkspaceStep_ConnectRemote({
     }
 
     if (!homeDir) return
-    const defaultBasePath = `${homeDir}/.craft-agent/workspaces`
+    const defaultBasePath = `${homeDir}/.shiori/workspaces`
 
     if (isCreateNew || isFreshServer) {
       // Create new workspace on remote server via direct RPC, then connect locally
@@ -204,7 +204,7 @@ export function AddWorkspaceStep_ConnectRemote({
         title={isReconnectMode ? t("workspace.reconnect", { name: reconnectWorkspace!.name }) : "Connect to remote server"}
         description={isReconnectMode
           ? "Update the server URL or token to restore the connection."
-          : "Connect to a remote Craft Agent Server for this workspace."}
+          : "Connect to a remote Shiori Server for this workspace."}
       />
 
       <div className="mt-6 w-full space-y-5">

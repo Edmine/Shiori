@@ -1,5 +1,13 @@
 export * from './types.ts';
-export { CONFIG_DIR, DEFAULT_CONFIG_DIR_NAME, resolveConfigDir } from './paths.ts';
+export {
+  CONFIG_DIR,
+  DEFAULT_CONFIG_DIR_NAME,
+  LEGACY_CONFIG_DIR_NAME,
+  resolveConfigDir,
+  migrateLegacyConfigDir,
+  type LegacyMigrationResult,
+} from './paths.ts';
+export * from './magpie-bridge.ts';
 export * from './llm-connections.ts';
 export * from './llm-validation.ts';
 export * from './models.ts';

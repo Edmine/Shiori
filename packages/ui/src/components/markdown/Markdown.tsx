@@ -13,6 +13,7 @@ import { MarkdownMermaidBlock } from './MarkdownMermaidBlock'
 import { MarkdownDatatableBlock } from './MarkdownDatatableBlock'
 import { MarkdownSpreadsheetBlock } from './MarkdownSpreadsheetBlock'
 import { MarkdownHtmlBlock } from './MarkdownHtmlBlock'
+import { MarkdownInteractiveUiBlock } from './MarkdownInteractiveUiBlock'
 import { MarkdownImageBlock } from './MarkdownImageBlock'
 import { MarkdownLatexBlock } from './MarkdownLatexBlock'
 import { MarkdownPdfBlock } from './MarkdownPdfBlock'
@@ -35,6 +36,7 @@ import { markdownUrlTransform } from './url-transform'
 export type DisablablePreviewBlock =
   | 'markdown-preview'
   | 'html-preview'
+  | 'shiori-ui'
   | 'pdf-preview'
   | 'image-preview'
 
@@ -294,6 +296,10 @@ function createComponents(
           if (match?.[1] === 'html-preview' && isPreviewEnabled('html-preview')) {
             return wrapBlock('html-preview', code, <MarkdownHtmlBlock code={code} className="my-2" />, props.node?.position)
           }
+          // Intelligent UI blocks → sandboxed interactive HTML/JS widget with two-way session bridge
+          if ((match?.[1] === 'shiori-ui' || match?.[1] === 'interactive-ui') && isPreviewEnabled('shiori-ui')) {
+            return wrapBlock('shiori-ui', code, <MarkdownInteractiveUiBlock code={code} className="my-2" />, props.node?.position)
+          }
           // PDF preview blocks → inline first page with expand to full viewer
           if (match?.[1] === 'pdf-preview' && isPreviewEnabled('pdf-preview')) {
             return wrapBlock('pdf-preview', code, <MarkdownPdfBlock code={code} className="my-2" />, props.node?.position)
@@ -431,6 +437,10 @@ function createComponents(
         // HTML preview blocks → sandboxed iframe
         if (match?.[1] === 'html-preview' && isPreviewEnabled('html-preview')) {
           return wrapBlock('html-preview', code, <MarkdownHtmlBlock code={code} className="my-2" />, props.node?.position)
+        }
+        // Intelligent UI blocks → sandboxed interactive HTML/JS widget with two-way session bridge
+        if ((match?.[1] === 'shiori-ui' || match?.[1] === 'interactive-ui') && isPreviewEnabled('shiori-ui')) {
+          return wrapBlock('shiori-ui', code, <MarkdownInteractiveUiBlock code={code} className="my-2" />, props.node?.position)
         }
         // PDF preview blocks → inline first page with expand to full viewer
         if (match?.[1] === 'pdf-preview' && isPreviewEnabled('pdf-preview')) {

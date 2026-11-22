@@ -8,7 +8,7 @@ import { ListTodo } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useCopyToClipboard } from '../../lib/use-copy-to-clipboard'
 import { TWEEN } from '../../motion/presets'
-import { Markdown, RunCommandProvider, useRunCommand, type FileOpenHandler } from '../markdown'
+import { Markdown, RunCommandProvider, useRunCommand, InteractiveUiProvider, useInteractiveUi, type FileOpenHandler } from '../markdown'
 import { type IslandTransitionConfig } from '../ui'
 import { AnnotationIslandMenu } from '../annotations/AnnotationIslandMenu'
 import {
@@ -1378,6 +1378,13 @@ export function ResponseCard({
 
   const isCompleted = !isStreaming
   const runCommand = useRunCommand()
+  const interactiveUi = useInteractiveUi()
+  const scopedInteractiveUi = React.useMemo(() => {
+    if (interactiveUi) {
+      return { ...interactiveUi, isStreaming }
+    }
+    return isStreaming ? { onAction: () => {}, isStreaming: true } : null
+  }, [interactiveUi, isStreaming])
   const isBuffering = isStreaming && !bufferDecision.shouldShow
 
   // While buffering, return null - TurnCard will show a subtle indicator instead
@@ -1463,6 +1470,7 @@ export function ResponseCard({
   return (
     // A streaming answer's code blocks offer no "Run in background": half a command must never run
     <RunCommandProvider value={isStreaming ? null : runCommand}>
+    <InteractiveUiProvider value={scopedInteractiveUi}>
       {isPlan ? (
         // Plan: raised card with a header; the footer holds the primary Accept action
         <div className="group/answer overflow-hidden rounded-lg bg-raised shadow-elev-1">
@@ -1502,6 +1510,7 @@ export function ResponseCard({
         />
       )}
       {selectionMenu}
+    </InteractiveUiProvider>
     </RunCommandProvider>
   )
 }

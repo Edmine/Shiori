@@ -6,6 +6,10 @@ interface SessionProjectColorWrapperProps {
   color: string | null | undefined
   /** Visual treatment to apply when `color` is present */
   treatment: ProjectColorTreatment
+  /** Align stripe and tint with inset sidebar rows */
+  inset?: boolean
+  /** Emphasize the stripe only on the active/selected row in sidebar mode */
+  isSelected?: boolean
   children: React.ReactNode
 }
 
@@ -26,6 +30,8 @@ interface SessionProjectColorWrapperProps {
 export function SessionProjectColorWrapper({
   color,
   treatment,
+  inset = false,
+  isSelected = false,
   children,
 }: SessionProjectColorWrapperProps) {
   if (!color) return <>{children}</>
@@ -36,13 +42,19 @@ export function SessionProjectColorWrapper({
     <div className="relative">
       {showTint && (
         <div
-          className="pointer-events-none absolute inset-0"
+          className={inset ? "pointer-events-none absolute inset-x-2 inset-y-[1px] rounded-lg" : "pointer-events-none absolute inset-0"}
           style={{ backgroundColor: `color-mix(in srgb, ${color} 6%, transparent)` }}
           aria-hidden
         />
       )}
       <div
-        className="pointer-events-none absolute left-0 inset-y-0 z-[1] w-[3px]"
+        className={
+          inset
+            ? isSelected
+              ? "pointer-events-none absolute left-2 top-2 bottom-2 z-[2] w-[2px] rounded-full opacity-85"
+              : "pointer-events-none absolute left-2 top-2.5 bottom-2.5 z-[2] w-[2px] rounded-full opacity-35"
+            : "pointer-events-none absolute left-0 inset-y-0 z-[1] w-[3px]"
+        }
         style={{ backgroundColor: color }}
         aria-hidden
       />

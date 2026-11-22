@@ -79,15 +79,17 @@ export default function LabelsSettingsPage() {
                 <p>
                   {t("settings.labels.aboutText3")}
                 </p>
-                <p>
-                  <button
-                    type="button"
-                    onClick={() => window.electronAPI?.openUrl(getDocUrl('labels'))}
-                    className={settingsUI.link}
-                  >
-                    {t("chat.learnMore")}
-                  </button>
-                </p>
+                {Boolean(getDocUrl('labels')) && (
+                  <p>
+                    <button
+                      type="button"
+                      onClick={() => window.electronAPI?.openUrl(getDocUrl('labels'))}
+                      className={settingsUI.link}
+                    >
+                      {t("chat.learnMore")}
+                    </button>
+                  </p>
+                )}
               </div>
             </SettingsCard>
           </SettingsSection>

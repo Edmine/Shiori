@@ -24,12 +24,15 @@ import * as React from 'react'
 import { motion } from 'motion/react'
 import { TWEEN } from '@craft-agent/ui/motion'
 import { cn } from '@/lib/utils'
+import { isWindows, isWebUI } from '@/lib/platform'
 import { useCompensateForStoplight } from '@/context/StoplightContext'
 import { useAppShellContext } from '@/context/AppShellContext'
 
 // Padding to compensate for macOS traffic lights (stoplight buttons)
 // Traffic lights positioned at x:18, ~52px wide = 70px + 14px gap
 const STOPLIGHT_PADDING = 84
+// Padding to compensate for Windows titleBarOverlay caption buttons (- □ ×)
+const WINDOWS_CAPTION_OVERLAY_PADDING = 144
 
 // Compact header controls are 44px touch targets with a 6px flex gap.
 // Reserve the real occupied width for the centered title so long titles truncate
@@ -92,8 +95,9 @@ export function PanelHeader({
   // Fall back to AppShellContext.leadingAction so per-panel back buttons (set by
   // PanelSlot in compact mode) propagate to every page's PanelHeader without each
   // page having to forward the prop manually.
-  const { leadingAction: contextLeadingAction, isCompactMode } = useAppShellContext()
+  const { leadingAction: contextLeadingAction, isCompactMode, isAtRightEdge = true } = useAppShellContext()
   const leadingAction = explicitLeadingAction ?? contextLeadingAction
+  const reserveWindowsCaption = isWindows && !isWebUI && !isCompactMode && isAtRightEdge
 
   // Use context as fallback when prop is not explicitly set.
   // Skip stoplight compensation when leadingAction is present — the back button
@@ -201,7 +205,7 @@ export function PanelHeader({
       : leadingAction || titleRow ? 'pl-2.5' : 'pl-gutter'
 
   const baseClassName = cn(
-    'flex shrink-0 items-center min-w-0 gap-1.5 relative z-panel h-12',
+    'flex shrink-0 items-center min-w-0 gap-1.5 relative z-panel h-11 titlebar-drag-region',
     isCompactMode ? 'pr-1.5' : 'pr-2.5',
     // Traffic-light compensation is a layout change: it applies at once (spec §6.1 — padding never animates).
     !shouldCompensate && (paddingLeft || inset),
@@ -211,7 +215,10 @@ export function PanelHeader({
   return (
     <div
       className={baseClassName}
-      style={shouldCompensate ? { paddingLeft: STOPLIGHT_PADDING } : undefined}
+      style={{
+        ...(shouldCompensate ? { paddingLeft: STOPLIGHT_PADDING } : {}),
+        ...(reserveWindowsCaption ? { paddingRight: WINDOWS_CAPTION_OVERLAY_PADDING } : {}),
+      }}
     >
       {content}
     </div>

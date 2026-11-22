@@ -416,6 +416,9 @@ export interface ElectronAPI {
   /** Native material behind this window (macOS vibrancy, Windows 11 22H2+ Mica); null when the window is opaque. */
   getWindowVibrancy(): WindowVibrancy | null
 
+  /** Sync Windows titleBarOverlay symbol contrast with active light/dark theme */
+  setTitleBarOverlayTheme?(isDark: boolean): void
+
   // Shell operations
   openUrl(url: string): Promise<void>
   openFile(path: string): Promise<void>
@@ -650,6 +653,14 @@ export interface ElectronAPI {
 
   // Git operations
   getGitBranch(dirPath: string): Promise<string | null>
+  /** Working tree git status summary for the live Diff drawer */
+  getGitStatus(dirPath: string): Promise<import('@craft-agent/shared/protocol').GitStatusSummary>
+  /** Read HEAD vs working tree contents for a single repo-relative file */
+  getGitFileDiff(
+    dirPath: string,
+    filePath: string,
+    options?: import('@craft-agent/shared/protocol').GitFileDiffOptions,
+  ): Promise<import('@craft-agent/shared/protocol').GitFileDiffPayload>
   /** Coding mode worktree picker: local repos (workspace folder + these recent folders) and `gh repo list` */
   listCodingRepos(workspaceId: string, recentDirs: string[], options?: { refreshGitHub?: boolean }): Promise<import('@craft-agent/shared/protocol').RepoListing>
   /** Creates a new session's worktree (cloning a GitHub-only repo first); rejects with git's reason */

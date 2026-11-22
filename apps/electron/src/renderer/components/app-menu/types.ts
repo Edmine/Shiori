@@ -9,6 +9,7 @@ import type { SettingsMenuItem } from '../../../shared/menu-schema'
 export interface AppMenuProps {
   onNewChat: () => void
   onNewWindow?: () => void
+  onAddBrowserPanel?: () => void
   onOpenSettings: () => void
   /** Navigate to a specific settings subpage */
   onOpenSettingsSubpage: (subpage: SettingsMenuItem['id']) => void
@@ -16,4 +17,6 @@ export interface AppMenuProps {
   onOpenStoredUserPreferences: () => void
   onToggleSidebar?: () => void
   onToggleFocusMode?: () => void
+  /** Icon-only trigger for embedded desktop headers without a dedicated top brand bar */
+  compact?: boolean
 }

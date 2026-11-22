@@ -5,8 +5,9 @@ import { checkAttachmentSizes, DEFAULT_MAX_MESSAGE_BYTES, formatAttachmentBytes,
 import {
   Paperclip,
   ChevronUp,
+  Folder,
 } from 'lucide-react'
-import { Icon_Home, consoleSnippetCommand } from '@craft-agent/ui'
+import { consoleSnippetCommand } from '@craft-agent/ui'
 
 import { IconButton } from '@/components/ui/button'
 import {
@@ -74,6 +75,7 @@ import {
 import { useModelVisionToggle } from './useModelVisionToggle'
 import { ComposerSourcesChip } from './ComposerSourcesChip'
 import { ComposerCodingChip } from './ComposerCodingChip'
+import { ComposerOptionsMenu } from './ComposerOptionsMenu'
 import { useDirectoryPicker } from '@/hooks/useDirectoryPicker'
 import { ServerDirectoryBrowser } from '@/components/ServerDirectoryBrowser'
 import { ComposerModelMenu } from './ComposerModelMenu'
@@ -82,11 +84,6 @@ import { ContextUsageChip } from './ContextUsageChip'
 import { FollowUpChips } from './FollowUpChips'
 import { SendButton } from './SendButton'
 
-
-/** Platform-specific modifier key for keyboard shortcuts */
-const cmdKey = isMac ? '⌘' : 'Ctrl'
-
-/** Default rotating placeholders are now generated inside FreeFormInput via useMemo + t() */
 
 /** Fisher-Yates shuffle — returns a new array in random order */
 function shuffleArray<T>(array: T[]): T[] {
@@ -308,19 +305,8 @@ export function FreeFormInput({
 }: FreeFormInputProps) {
   const { t } = useTranslation()
 
-  // Default rotating placeholders for onboarding/empty state (i18n-aware). The keyboard tips are
-  // left out in compact (touch) layouts, where they are noise.
-  const defaultPlaceholders = React.useMemo(() => [
-    t("chatInput.placeholder.workOn"),
-    ...(compactMode ? [] : [t("chatInput.placeholder.shiftTab")]),
-    t("chatInput.placeholder.mention"),
-    t("chatInput.placeholder.labels"),
-    ...(compactMode ? [] : [
-      t("chatInput.placeholder.newLine"),
-      t("chatInput.placeholder.sidebar", { key: cmdKey }),
-      t("chatInput.placeholder.focusMode", { key: cmdKey }),
-    ]),
-  ], [t, compactMode])
+  // Calm, steady Shiori placeholder (shortcut tips already appear in ComposerHintLine on focus).
+  const defaultPlaceholder = t("chatInput.placeholder.shiori")
 
   // Read connection default model, connections, and workspace info from context.
   // Uses optional variant so playground (no provider) doesn't crash.
@@ -440,7 +426,7 @@ export function FreeFormInput({
   // narrow/mobile-like layouts: the defaults drop their keyboard tips above, and caller-provided
   // lists drop entries that mention keys.
   const placeholderOptions = React.useMemo(() => {
-    if (placeholder === undefined) return defaultPlaceholders
+    if (placeholder === undefined) return defaultPlaceholder
     if (!Array.isArray(placeholder)) return placeholder
     if (!compactMode) return placeholder
     return placeholder.filter((entry) => {
@@ -452,15 +438,17 @@ export function FreeFormInput({
         && !lower.includes('⌘')
         && !lower.includes('ctrl')
     })
-  }, [placeholder, compactMode, defaultPlaceholders])
+  }, [placeholder, compactMode, defaultPlaceholder])
 
   // Shuffle placeholder order once per mount so each session feels fresh.
   // Hide placeholder entirely when panel is unfocused in multi-panel layout
   const shuffledPlaceholder = React.useMemo(
     () => Array.isArray(placeholderOptions) ? shuffleArray(placeholderOptions) : placeholderOptions,
-    [] // eslint-disable-line react-hooks/exhaustive-deps -- intentionally shuffle only on mount
+    [placeholderOptions]
   )
-  const effectivePlaceholder = isFocusedPanel ? shuffledPlaceholder : ''
+  const effectivePlaceholder = isFocusedPanel
+    ? (isProcessing ? t('chatInput.placeholder.steering') : shuffledPlaceholder)
+    : ''
 
   // Performance optimization: Always use internal state for typing to avoid parent re-renders
   // Sync FROM parent on mount/change (for restoring drafts)
@@ -1722,8 +1710,8 @@ export function FreeFormInput({
           // Copy type (15/24; 16/26 in compact so iOS never zooms), placeholder in tertiary.
           // Narrow panels reserve two lines so a wrapped rotating tip is never clipped.
           className={cn(
-            'px-3.5 pt-3.5 pb-3.5',
-            compactMode ? 'text-copy-lg min-h-[80px]' : 'text-copy @max-panel-medium/panel:min-h-[76px]',
+            'px-4 pt-3.5 pb-3',
+            compactMode ? 'text-copy-lg min-h-[76px]' : 'text-copy min-h-[56px]',
           )}
           style={{ lineHeight: compactMode ? 'var(--lh-copy-lg)' : 'var(--lh-copy)' }}
           data-tutorial="chat-input"
@@ -1741,10 +1729,8 @@ export function FreeFormInput({
             sessionId={sessionId}
           />
 
-          {/* Toolbar (mockup `.cx-bar`): attach · sources · folder · spacer · mode · model · context · send */}
-          {/* The first icon's glyph lines up with the draft text (card-pad, 14px): 28px desktop
-              buttons pad 6px, 36px compact ones 10px, so the row insets 8px / 4px. */}
-          <div className={cn("flex items-center gap-1 pb-1.5", compactMode ? "px-1" : "px-2", isCollapsedInCompact && "pt-1.5")}>
+          {/* Toolbar: attach · session options · active overrides · spacer · mode · model · context · send */}
+          <div className={cn("flex items-center gap-1 pb-2", compactMode ? "px-1.5" : "px-2.5", isCollapsedInCompact && "pt-1.5")}>
           {/* Hidden file input for attach button (shared by compact and desktop) */}
           <input
             ref={fileInputRef}
@@ -1754,16 +1740,12 @@ export function FreeFormInput({
             onChange={handleFileInputChange}
           />
 
-          {/* Left: attach, sources, working folder. Compact, and desktop panels under 32rem, show
-              the chips icon-only (their names stay in tooltips/aria-labels) so the model keeps its
-              name. Desktop keeps the three icons (96px) while the row still leaves 11rem for mode ·
-              model · context · Send; in a narrower row that floor gives way so Send is never pushed
-              out. overflow-hidden is safe — popovers/drawers portal. */}
+          {/* Left: attach + session options popover, plus active override badges only when enabled. */}
           <div className={cn(
             "flex items-center gap-1",
             compactMode
               ? "shrink-0 [&_[data-badge-label]]:hidden"
-              : "min-w-[clamp(0px,calc(100%-11rem),6rem)] shrink overflow-hidden @max-[32rem]/panel:[&_[data-badge-label]]:hidden"
+              : "min-w-[clamp(0px,calc(100%-11rem),4rem)] shrink overflow-hidden @max-[32rem]/panel:[&_[data-badge-label]]:hidden"
           )}>
           <IconButton
             aria-label={attachments.length > 0
@@ -1777,8 +1759,19 @@ export function FreeFormInput({
             className="input-toolbar-btn"
           />
 
-          {/* Source selector chip - only show if onSourcesChange is provided */}
-          {onSourcesChange && (
+          <ComposerOptionsMenu
+            disabled={disabled}
+            isEmptySession={isEmptySession}
+            codingMode={codingMode}
+            onToggleCodingMode={onCodingModeChange ? handleCodingModeToggle : undefined}
+            onContinueWithCodingMode={onContinueWithCodingMode}
+            sources={sources}
+            selectedSourceSlugs={optimisticSourceSlugs}
+            onToggleSourceSlug={onSourcesChange ? handleToggleSourceSlug : undefined}
+          />
+
+          {/* Active override chips — shown only when the user explicitly turns them on */}
+          {onSourcesChange && optimisticSourceSlugs.length > 0 && (
             <ComposerSourcesChip
               compact={compactMode}
               sources={sources}
@@ -1792,7 +1785,6 @@ export function FreeFormInput({
             />
           )}
 
-          {/* Working directory chip */}
           {onWorkingDirectoryChange && (compactMode ? (
             <CompactWorkingDirectorySelector
               workingDirectory={workingDirectory}
@@ -1811,8 +1803,7 @@ export function FreeFormInput({
             />
           ))}
 
-          {/* Coding mode chip — next to the folder: the mode is about the folder's code */}
-          {onCodingModeChange && onContinueWithCodingMode && (
+          {onCodingModeChange && onContinueWithCodingMode && codingMode && (
             <ComposerCodingChip
               enabled={codingMode}
               locked={!isEmptySession}
@@ -1919,6 +1910,7 @@ export function FreeFormInput({
           {/* Send/Stop Button - Always show stop when processing */}
           <SendButton
             isProcessing={isProcessing}
+            canSteer={Boolean(hasContent && !disabled && !disableSend)}
             disabled={!hasContent || disabled || disableSend}
             onStop={() => handleStop(false)}
           />
@@ -1966,16 +1958,16 @@ function WorkingDirectoryBadge({
       renderTrigger={({ open, hasFolder, folderName, workingDirectory: wd, homeDir, gitBranch }) => (
         <span className="shrink min-w-0 overflow-hidden">
           <FreeFormInputContextBadge
-            icon={<Icon_Home className="h-4 w-4" />}
-            label={folderName ?? t('chat.workInFolder')}
-            isExpanded={isEmptySession}
+            icon={<Folder className={cn('size-3.5 shrink-0', hasFolder ? 'text-accent' : 'text-tertiary')} />}
+            label={folderName ?? t('chat.chooseFolderShort', { defaultValue: '选择目录' })}
+            isExpanded={isEmptySession || !hasFolder}
             hasSelection={hasFolder}
             showChevron={true}
             isOpen={open}
             tooltip={
               hasFolder ? (
                 <span className="flex flex-col gap-0.5">
-                  <span className="font-medium">{t("chat.workingDirectory")}</span>
+                  <span className="font-medium">{t("chat.projectFolder", { defaultValue: "项目目录" })}</span>
                   <span className="text-label-sm text-secondary">{formatPathForDisplay(wd, homeDir)}</span>
                   {gitBranch && <span className="text-label-sm text-secondary">{t("chat.onBranch", { branch: gitBranch })}</span>}
                 </span>

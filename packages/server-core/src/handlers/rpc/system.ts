@@ -10,6 +10,8 @@ import { validateFilePath, getWorkspaceAllowedDirs } from '@craft-agent/server-c
 import type { RpcServer } from '@craft-agent/server-core/transport'
 import type { HandlerDeps } from '../handler-deps'
 import { runGit } from '../../services/git'
+import { getGitStatusSummary, getGitFileDiff } from '../../services/git-diff'
+import type { GitFileDiffOptions } from '@craft-agent/shared/protocol'
 import {
   requestClientOpenExternal,
   requestClientOpenPath,
@@ -29,6 +31,8 @@ export const CORE_HANDLED_CHANNELS = [
   RPC_CHANNELS.releaseNotes.GET,
   RPC_CHANNELS.releaseNotes.GET_LATEST_VERSION,
   RPC_CHANNELS.git.GET_BRANCH,
+  RPC_CHANNELS.git.GET_STATUS,
+  RPC_CHANNELS.git.GET_FILE_DIFF,
   RPC_CHANNELS.gitbash.CHECK,
   RPC_CHANNELS.gitbash.BROWSE,
   RPC_CHANNELS.gitbash.SET_PATH,
@@ -184,6 +188,14 @@ export function registerSystemCoreHandlers(server: RpcServer, deps: HandlerDeps)
   // Async: a slow git (large repo, cold disk) must not block the server.
   server.handle(RPC_CHANNELS.git.GET_BRANCH, async (_ctx, dirPath: string) => {
     return runGit(dirPath, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
+  })
+
+  server.handle(RPC_CHANNELS.git.GET_STATUS, async (_ctx, dirPath: string) => {
+    return getGitStatusSummary(dirPath)
+  })
+
+  server.handle(RPC_CHANNELS.git.GET_FILE_DIFF, async (_ctx, dirPath: string, filePath: string, options?: GitFileDiffOptions) => {
+    return getGitFileDiff(dirPath, filePath, options)
   })
 
   // Git Bash detection and configuration (Windows only)

@@ -39,14 +39,14 @@ import { join, dirname } from 'path';
 import type { CredentialBackend } from './types.ts';
 import type { CredentialId, StoredCredential } from '../types.ts';
 import { credentialIdToAccount, accountToCredentialId } from '../types.ts';
-import { CONFIG_DIR, DEFAULT_CONFIG_DIR_NAME } from '../../config/paths.ts';
+import { CONFIG_DIR, LEGACY_CONFIG_DIR_NAME } from '../../config/paths.ts';
 
 // File location
 const CREDENTIALS_FILE = join(CONFIG_DIR, 'credentials.enc');
 
 // One-time migration: v0.13.5 always stored credentials in ~/.craft-agent even
 // when CRAFT_CONFIG_DIR was set. Copy on first start so credentials survive.
-const LEGACY_CREDENTIALS_FILE = join(homedir(), DEFAULT_CONFIG_DIR_NAME, 'credentials.enc');
+const LEGACY_CREDENTIALS_FILE = join(homedir(), LEGACY_CONFIG_DIR_NAME, 'credentials.enc');
 function migrateCredentialsIfNeeded(): void {
   if (CREDENTIALS_FILE === LEGACY_CREDENTIALS_FILE) return;
   if (existsSync(CREDENTIALS_FILE) || !existsSync(LEGACY_CREDENTIALS_FILE)) return;

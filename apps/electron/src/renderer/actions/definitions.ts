@@ -39,6 +39,13 @@ export const actions = {
     defaultHotkey: 'mod+f',
     category: 'General',
   },
+  'app.commandPalette': {
+    id: 'app.commandPalette',
+    label: 'Command Palette',
+    description: 'Search sessions, workspaces, settings, and actions',
+    defaultHotkey: 'mod+k',
+    category: 'General',
+  },
   'app.keyboardShortcuts': {
     id: 'app.keyboardShortcuts',
     label: 'Keyboard Shortcuts',
@@ -134,6 +141,13 @@ export const actions = {
     label: 'Toggle Focus Mode',
     description: 'Hide both sidebars for distraction-free work',
     defaultHotkey: 'mod+.',
+    category: 'View',
+  },
+  'view.toggleDiffDrawer': {
+    id: 'view.toggleDiffDrawer',
+    label: 'Toggle Code Changes',
+    description: 'Open or close the Git diff review drawer',
+    defaultHotkey: 'mod+shift+d',
     category: 'View',
   },
 

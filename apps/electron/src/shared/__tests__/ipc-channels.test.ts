@@ -103,6 +103,8 @@ const EXPECTED_CHANNELS: string[] = [
   'fs:search',
   'git:createWorktree',
   'git:getBranch',
+  'git:getFileDiff',
+  'git:getStatus',
   'git:listRepos',
   'gitbash:browse',
   'gitbash:check',

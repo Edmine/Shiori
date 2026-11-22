@@ -366,6 +366,10 @@ export const RPC_CHANNELS = {
   },
   git: {
     GET_BRANCH: 'git:getBranch',
+    /** Working tree git status summary (branch, changed files, +/- stats) */
+    GET_STATUS: 'git:getStatus',
+    /** Original (HEAD) vs working-tree contents for a single repo-relative file */
+    GET_FILE_DIFF: 'git:getFileDiff',
     /** Coding mode's worktree picker: local repos + `gh repo list` (see protocol/git-repos.ts) */
     LIST_REPOS: 'git:listRepos',
     /** Creates a worktree (cloning first for a GitHub-only repo) for a new Coding session */

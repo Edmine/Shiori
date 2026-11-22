@@ -148,7 +148,8 @@ export type AnnotationBlockType =
   | 'spreadsheet'
   | 'image-preview'
   | 'pdf-preview'
-  | 'html-preview';
+  | 'html-preview'
+  | 'shiori-ui';
 
 /**
  * Selector union used to anchor an annotation target.

@@ -5,6 +5,14 @@
 export { Markdown, MemoizedMarkdown, type MarkdownProps, type RenderMode, type DisablablePreviewBlock } from './Markdown'
 export { CodeBlock, InlineCode, type CodeBlockProps } from './CodeBlock'
 export { RunCommandProvider, useRunCommand, type RunCommandHandler } from './RunCommandContext'
+export {
+  InteractiveUiProvider,
+  useInteractiveUi,
+  formatInteractiveUiActionMessage,
+  type InteractiveUiActionPayload,
+  type InteractiveUiContextValue,
+} from './InteractiveUiContext'
+export { MarkdownInteractiveUiBlock, type MarkdownInteractiveUiBlockProps } from './MarkdownInteractiveUiBlock'
 export { shellCommandFromBlock, consoleSnippetCommand } from './shell-command'
 export { preprocessLinks, detectLinks, hasLinks } from './linkify'
 export { describeFileLinkClick, type FileLinkClick, type FileOpenHandler } from './link-target'

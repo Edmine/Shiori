@@ -201,11 +201,15 @@ export function SidebarMenu({
             <span className="flex-1">{t("sidebarMenu.addSource")}</span>
           </MenuItem>
         )}
+        {Boolean(getDocUrl(docFeature)) && (
+          <>
         <Separator />
         <MenuItem onClick={() => window.electronAPI.openUrl(getDocUrl(docFeature))}>
           <ExternalLink className="h-3.5 w-3.5" />
           <span className="flex-1">{learnMoreLabel}</span>
         </MenuItem>
+          </>
+        )}
       </>
     )
   }
@@ -244,11 +248,15 @@ export function SidebarMenu({
             <span className="flex-1">{t("sidebarMenu.addAutomation")}</span>
           </MenuItem>
         )}
+        {Boolean(getDocUrl('automations')) && (
+          <>
         <Separator />
         <MenuItem onClick={() => window.electronAPI.openUrl(getDocUrl('automations'))}>
           <ExternalLink className="h-3.5 w-3.5" />
           <span className="flex-1">{t("sidebarMenu.learnMoreAutomations")}</span>
         </MenuItem>
+          </>
+        )}
       </>
     )
   }

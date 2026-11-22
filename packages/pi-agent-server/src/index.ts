@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import './runtime-compat.ts';
 /**
  * Pi Agent Server
  *

@@ -118,116 +118,18 @@ export function SessionMenu({
 
   return (
     <>
-      {/* Share/Shared based on shared state */}
-      {!sharedUrl ? (
-        <MenuItem onClick={actions.share}>
-          <CloudUpload className="h-3.5 w-3.5" />
-          <span className="flex-1">{t("sessionMenu.share")}</span>
-        </MenuItem>
-      ) : (
-        <Sub>
-          <SubTrigger className="pr-2">
-            <CloudUpload className="h-3.5 w-3.5" />
-            <span className="flex-1">{t("sessionMenu.shared")}</span>
-          </SubTrigger>
-          <SubContent>
-            <ShareMenuItems
-              onOpenInBrowser={actions.openSharedInBrowser}
-              onCopyLink={actions.copySharedLink}
-              onUpdateShare={actions.updateShare}
-              onRevokeShare={actions.revokeShare}
-              menu={{ MenuItem, Separator }}
-            />
-          </SubContent>
-        </Sub>
-      )}
+      {/* Primary session management actions */}
+      <MenuItem onClick={onRename}>
+        <Pencil className="h-3.5 w-3.5" />
+        <span className="flex-1">{t("common.rename")}</span>
+      </MenuItem>
 
-      {/* Send to Workspace — visible when at least one other workspace exists */}
-      {hasTransferTargets && onSendToWorkspace && (
-        <MenuItem onClick={onSendToWorkspace}>
-          <Send className="h-3.5 w-3.5" />
-          <span className="flex-1">{t("sessionMenu.sendToWorkspace")}</span>
-        </MenuItem>
-      )}
-
-      {/* Connect to Messaging — pairing code flow */}
-      <MessagingSessionMenuItem sessionId={sessionId} />
+      <MenuItem onClick={actions.refreshTitle}>
+        <RefreshCw className="h-3.5 w-3.5" />
+        <span className="flex-1">{t("sessionMenu.regenerateTitle")}</span>
+      </MenuItem>
 
       <Separator />
-
-      {/* Status submenu - includes all statuses plus Flag/Unflag at the bottom */}
-      <Sub>
-        <SubTrigger className="pr-2">
-          <span style={{ color: getStateColor(currentSessionStatus, sessionStatuses) ?? 'var(--foreground)' }}>
-            {(() => {
-              const icon = getStateIcon(currentSessionStatus, sessionStatuses)
-              return React.isValidElement(icon)
-                ? React.cloneElement(icon as React.ReactElement<{ bare?: boolean }>, { bare: true })
-                : icon
-            })()}
-          </span>
-          <span className="flex-1">{t("sessionMenu.status")}</span>
-        </SubTrigger>
-        <SubContent>
-          <StatusMenuItems
-            sessionStatuses={sessionStatuses}
-            activeStateId={currentSessionStatus}
-            onSelect={onSessionStatusChange}
-            menu={{ MenuItem }}
-          />
-        </SubContent>
-      </Sub>
-
-      {/* Labels submenu - hierarchical label tree with nested sub-menus and toggle checkmarks */}
-      {labels.length > 0 && (
-        <Sub>
-          <SubTrigger className="pr-2">
-            <Tag className="h-3.5 w-3.5" />
-            <span className="flex-1">{t("sessionMenu.labels")}</span>
-            {actions.appliedLabelIds.size > 0 && (
-              <span className="text-[10px] text-muted-foreground tabular-nums -mr-2.5">
-                {actions.appliedLabelIds.size}
-              </span>
-            )}
-          </SubTrigger>
-          <SubContent>
-            <LabelMenuItems
-              labels={labels}
-              appliedLabelIds={actions.appliedLabelIds}
-              onToggle={actions.toggleLabel}
-              menu={{ MenuItem, Separator, Sub, SubTrigger, SubContent }}
-            />
-          </SubContent>
-        </Sub>
-      )}
-
-      {/* Projects submenu - workspace projects + "No project" to clear binding */}
-      {projects.length > 0 && onSetProjectId && (
-        <Sub>
-          <SubTrigger className="pr-2">
-            <FolderKanban className="h-3.5 w-3.5" />
-            <span className="flex-1">{t("sessionMenu.projects")}</span>
-          </SubTrigger>
-          <SubContent>
-            <MenuItem onClick={() => onSetProjectId(null)}>
-              {!item.projectId && <Check className="h-3.5 w-3.5" />}
-              <span className={item.projectId ? 'flex-1 ml-[18px]' : 'flex-1'}>
-                {t("sessionMenu.noProject")}
-              </span>
-            </MenuItem>
-            <Separator />
-            {projects.map((p) => {
-              const isBound = item.projectId === p.id
-              return (
-                <MenuItem key={p.id} onClick={() => onSetProjectId(p.id)}>
-                  {isBound && <Check className="h-3.5 w-3.5" />}
-                  <span className={isBound ? 'flex-1' : 'flex-1 ml-[18px]'}>{p.name}</span>
-                </MenuItem>
-              )
-            })}
-          </SubContent>
-        </Sub>
-      )}
 
       {/* Flag/Unflag */}
       {!isFlagged ? (
@@ -265,20 +167,6 @@ export function SessionMenu({
 
       <Separator />
 
-      {/* Rename */}
-      <MenuItem onClick={onRename}>
-        <Pencil className="h-3.5 w-3.5" />
-        <span className="flex-1">{t("common.rename")}</span>
-      </MenuItem>
-
-      {/* Regenerate Title - AI-generate based on recent messages */}
-      <MenuItem onClick={actions.refreshTitle}>
-        <RefreshCw className="h-3.5 w-3.5" />
-        <span className="flex-1">{t("sessionMenu.regenerateTitle")}</span>
-      </MenuItem>
-
-      <Separator />
-
       {/* Open in New Panel */}
       <MenuItem onClick={actions.openInNewPanel}>
         <Columns2 className="h-3.5 w-3.5" />
@@ -302,6 +190,107 @@ export function SessionMenu({
         <Copy className="h-3.5 w-3.5" />
         <span className="flex-1">{t("sessionMenu.copyPath")}</span>
       </MenuItem>
+
+      <Separator />
+
+      {/* Secondary / optional metadata & sharing actions */}
+      {sharedUrl && (
+        <Sub>
+          <SubTrigger className="pr-2">
+            <CloudUpload className="h-3.5 w-3.5" />
+            <span className="flex-1">{t("sessionMenu.shared")}</span>
+          </SubTrigger>
+          <SubContent>
+            <ShareMenuItems
+              onOpenInBrowser={actions.openSharedInBrowser}
+              onCopyLink={actions.copySharedLink}
+              onUpdateShare={actions.updateShare}
+              onRevokeShare={actions.revokeShare}
+              menu={{ MenuItem, Separator }}
+            />
+          </SubContent>
+        </Sub>
+      )}
+
+      {hasTransferTargets && onSendToWorkspace && (
+        <MenuItem onClick={onSendToWorkspace}>
+          <Send className="h-3.5 w-3.5" />
+          <span className="flex-1">{t("sessionMenu.sendToWorkspace")}</span>
+        </MenuItem>
+      )}
+
+      <MessagingSessionMenuItem sessionId={sessionId} />
+
+      {labels.length > 0 && (
+        <Sub>
+          <SubTrigger className="pr-2">
+            <Tag className="h-3.5 w-3.5" />
+            <span className="flex-1">{t("sessionMenu.labels")}</span>
+            {actions.appliedLabelIds.size > 0 && (
+              <span className="text-[10px] text-muted-foreground tabular-nums -mr-2.5">
+                {actions.appliedLabelIds.size}
+              </span>
+            )}
+          </SubTrigger>
+          <SubContent>
+            <LabelMenuItems
+              labels={labels}
+              appliedLabelIds={actions.appliedLabelIds}
+              onToggle={actions.toggleLabel}
+              menu={{ MenuItem, Separator, Sub, SubTrigger, SubContent }}
+            />
+          </SubContent>
+        </Sub>
+      )}
+
+      {projects.length > 0 && onSetProjectId && (
+        <Sub>
+          <SubTrigger className="pr-2">
+            <FolderKanban className="h-3.5 w-3.5" />
+            <span className="flex-1">{t("sessionMenu.projects")}</span>
+          </SubTrigger>
+          <SubContent>
+            <MenuItem onClick={() => onSetProjectId(null)}>
+              {!item.projectId && <Check className="h-3.5 w-3.5" />}
+              <span className={item.projectId ? 'flex-1 ml-[18px]' : 'flex-1'}>
+                {t("sessionMenu.noProject")}
+              </span>
+            </MenuItem>
+            <Separator />
+            {projects.map((p) => {
+              const isBound = item.projectId === p.id
+              return (
+                <MenuItem key={p.id} onClick={() => onSetProjectId(p.id)}>
+                  {isBound && <Check className="h-3.5 w-3.5" />}
+                  <span className={isBound ? 'flex-1' : 'flex-1 ml-[18px]'}>{p.name}</span>
+                </MenuItem>
+              )
+            })}
+          </SubContent>
+        </Sub>
+      )}
+
+      <Sub>
+        <SubTrigger className="pr-2">
+          <span style={{ color: getStateColor(currentSessionStatus, sessionStatuses) ?? 'var(--foreground)' }}>
+            {(() => {
+              const icon = getStateIcon(currentSessionStatus, sessionStatuses)
+              return React.isValidElement(icon)
+                ? React.cloneElement(icon as React.ReactElement<{ bare?: boolean }>, { bare: true })
+                : icon
+            })()}
+          </span>
+          <span className="flex-1">{t("sessionMenu.status")}</span>
+        </SubTrigger>
+        <SubContent>
+          <StatusMenuItems
+            sessionStatuses={sessionStatuses}
+            activeStateId={currentSessionStatus}
+            onSelect={onSessionStatusChange}
+            menu={{ MenuItem }}
+          />
+        </SubContent>
+      </Sub>
 
       <Separator />
 
