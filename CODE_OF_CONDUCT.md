@@ -15,7 +15,7 @@ We expect all participants to:
 
 ## Enforcement
 
-Instances of unacceptable behavior may be reported to: conduct@craft.do
+Instances of unacceptable behavior may be reported via GitHub Security Advisories or by contacting the repository maintainers directly at https://github.com/Edmine/Shiori.
 
 All complaints will be reviewed and investigated promptly and fairly.
 

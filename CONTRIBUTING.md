@@ -1,21 +1,21 @@
-# Contributing to Craft Agents
+# Contributing to Shiori
 
-Thank you for your interest in contributing to Craft Agents! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to **Shiori**! This guide covers local setup, code conventions, and pull request expectations.
 
 ## Getting Started
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) runtime
-- Node.js 18+ (for some tooling)
-- macOS, Linux, or Windows
+- [Bun](https://bun.sh/) 1.3+
+- Node.js 20+
+- Windows, macOS, or Linux
 
 ### Development Setup
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/craft-ai-agents/craft-agents-oss.git
-   cd craft-agents-oss
+   git clone https://github.com/Edmine/Shiori.git
+   cd Shiori
    ```
 
 2. Install dependencies:
@@ -23,10 +23,9 @@ Thank you for your interest in contributing to Craft Agents! This document provi
    bun install
    ```
 
-3. Set up environment variables:
+3. (Optional) Set up environment variables:
    ```bash
    cp .env.example .env
-   # Edit .env with your credentials
    ```
 
 4. Run in development mode:
@@ -38,100 +37,30 @@ Thank you for your interest in contributing to Craft Agents! This document provi
 
 ### Branch Naming
 
-Use descriptive branch names:
-- `feature/add-new-tool` - New features
-- `fix/resolve-auth-issue` - Bug fixes
-- `refactor/simplify-agent-loop` - Code refactoring
-- `docs/update-readme` - Documentation updates
+- `feat/...` — New features
+- `fix/...` — Bug fixes
+- `refactor/...` — Code refactoring
+- `docs/...` — Documentation updates
 
-### Making Changes
+### Verification Before Opening a PR
 
-1. Create a feature branch from `main`
-2. Make your changes
-3. Run type checking: `bun run typecheck:all`
-4. Commit your changes with clear, descriptive messages
-5. Push to your fork and create a pull request
-
-### Code Style
-
-- We use TypeScript throughout the codebase
-- Follow existing patterns in the codebase
-- Use meaningful variable and function names
-- Add comments for complex logic
-
-### Type Checking
-
-Before submitting a PR, ensure all type checks pass:
+Run type checks and CI validation locally:
 
 ```bash
-bun run typecheck:all
-```
-
-CI runs `validate:ci`, which adds the shared package tests, the document-tool smoke tests and the i18n checks:
-
-```bash
+bun run typecheck:electron
 bun run validate:ci
 ```
 
-## Pull Request Process
+If you add or modify UI strings, ensure both `en.json` and `zh-Hans.json` (and any other locale files under `packages/shared/src/i18n/locales/`) stay in parity and sorted:
 
-1. **Title**: Use a clear, descriptive title
-2. **Description**: Explain what the PR does and why
-3. **Testing**: Describe how you tested the changes
-4. **Screenshots**: Include screenshots for UI changes
-
-### PR Template
-
-```markdown
-## Summary
-Brief description of changes
-
-## Changes
-- Change 1
-- Change 2
-
-## Testing
-How you tested these changes
-
-## Screenshots (if applicable)
+```bash
+bun run sort-locales
+bun run lint:i18n:parity
 ```
 
-## Project Structure
+## Pull Request Guidelines
 
-```
-craft-agents-oss/
-├── apps/
-│   ├── electron/                   # Desktop GUI (primary interface)
-│   ├── webui/                      # Browser UI served by the headless server
-│   ├── cli/                        # Terminal client for the headless server
-│   └── viewer/                     # Web viewer for shared session transcripts
-└── packages/
-    ├── core/                       # @craft-agent/core - Shared types
-    ├── shared/                     # @craft-agent/shared - Business logic
-    ├── ui/                         # @craft-agent/ui - React components
-    ├── server-core/                # @craft-agent/server-core - RPC transport, handlers, session management
-    ├── server/                     # @craft-agent/server - Standalone headless server
-    ├── pi-agent-server/            # Pi agent subprocess (JSONL over stdio)
-    ├── session-tools-core/         # Session-scoped tool implementations
-    ├── messaging-gateway/          # Telegram, WhatsApp and Lark messaging gateway
-    └── messaging-whatsapp-worker/  # WhatsApp worker subprocess
-```
-
-## Key Areas
-
-- **Agent Logic**: `packages/shared/src/agent/`
-- **Authentication**: `packages/shared/src/auth/`
-- **MCP Integration**: `packages/shared/src/mcp/`
-- **Sessions**: `packages/server-core/src/sessions/`
-- **RPC Handlers**: `packages/server-core/src/handlers/rpc/`
-- **UI Components**: `packages/ui/src/`
-- **Electron App**: `apps/electron/`
-
-## Questions?
-
-- Open an issue for bugs or feature requests
-- Start a discussion for questions or ideas
-
-## License
-
-By contributing, you agree that your contributions will be licensed under the Apache License 2.0.
+- Keep PRs focused and reviewable.
+- Describe **what** changed and **why**.
+- Attach screenshots or short recordings for UI/UX changes.
+- Do not include personal credentials, local paths, or build artifacts.

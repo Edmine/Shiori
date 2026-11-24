@@ -1,57 +1,101 @@
-# Shiori
+<div align="center">
 
-Shiori 是一个专注、克制的桌面端 AI Agent 工作台（基于 [Craft Agents](https://github.com/craft-ai-agents/craft-agents-oss) `v0.15.11` 深度重构），面向日常编码与多任务协作场景，主打清晰的项目/会话层级、无干扰主界面以及本地优先的数据掌控。
+# Shiori (栞)
 
-## 核心特性
+**A local-first, aesthetic-driven desktop AI Agent studio.**
 
-### 1. 专注的桌面交互与信息架构
-- **单列可折叠侧栏**：将工作区切换、新建会话与历史任务收拢到统一侧栏，支持按项目文件夹分组与状态筛选。
-- **独立设置界面与命令面板**：数据源（Sources）、技能（Skills）、模型连接、权限与快捷键收敛至独立设置视图，支持快捷键快速唤起命令面板。
-- **暖灰中性色视觉体系**：完整适配浅色与深色主题，优化中文排版、长标题截断与窄窗口阅读体验。
+[English](README.md) · [简体中文](README.zh-CN.md)
 
-### 2. Agent 工作流增强
-- **运行中引导（Mid-Turn Steering）**：Agent 执行过程中可直接输入追加指令进行引导，无需粗暴中断当前轮次。
-- **Intelligent UI（交互式界面卡片）**：支持在对话中渲染沙箱化 `shiori-ui` / `interactive-ui` HTML/JS 交互卡片，内置浅/深色主题同步、自动高度适配、全屏查看、双向会话回传（`window.shiori.send` / `data-shiori-send`）以及**离线单文件 HTML 导出**。
-- **Git Diff 变更抽屉**：右侧按需展开查看工作区改动与代码差异。
-- **Magpie 桥接插件**：在 `integrations/magpie-agent-shiori/` 提供 Magpie 适配插件，便于对接本地代理与自定义模型路由。
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-8c6d3f.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-231f1b.svg)](#installation)
 
-### 3. 本地优先与完全去上游依赖
-- **独立数据目录 `~/.shiori/`**：首次启动时自动从 `~/.craft-agent/` 平滑迁移历史配置、工作区与会话（不覆盖已有文件，原目录保留备份）。
-- **零上游外链请求**：默认禁用上游自动更新检查与 `thecraftagents.com` 文档/分享域名（如需自建更新源，可通过环境变量 `SHIORI_UPDATE_URL` 开启）。
+</div>
 
-## 安装与使用（Windows）
+<p align="center">
+  <img src="docs/assets/shiori-hero.png" alt="Shiori Workspace" width="100%" />
+</p>
 
-目前已完成 **Windows x64** 实机构建与验证（macOS / Linux 构建脚本保留，但尚未实机验证）：
+Shiori is an open-source desktop workspace for working with autonomous AI agents across your local projects, shell, documents, APIs, and MCP servers. It pairs a complete engineering-grade agent runtime with a calm, paper-inspired interface and three signature capabilities: **Creative Lens**, **Interactive UI Canvas (`shiori-ui`)**, and a **Zero-Cost Cloudflare Relay**.
 
-1. 前往本仓库 **Releases** 页面下载：
-   - 安装版：`Shiori-Setup-0.15.11-x64.exe`（推荐，支持自定义安装路径，卸载不删用户数据）
-   - 便携版：`Shiori-0.15.11-win-x64.zip`（解压到常规目录即可运行）
-2. 由于个人构建未附带商业代码签名，首次安装时 Windows SmartScreen 可能提示未知发布者，点击「更多信息 → 仍要运行」即可。
+---
 
-## 本地开发与构建
+## Core Agent Capabilities
 
-环境要求：[Bun](https://bun.sh/) 1.3+、Node.js 20+。
+Whether you are new to desktop AI agents or migrating from CLI tools, Shiori ships with a complete foundation out of the box:
+
+- **Multi-Session & Project Workspaces** — Organize conversations by project folder, status, and labels, with isolated workspaces stored locally under `~/.shiori/`.
+- **Local Code, Shell & File Execution** — Read, search, edit files, run terminal commands, and inspect workspace changes in a built-in **Git Diff drawer** without leaving the app.
+- **Granular Permission Modes** — Switch instantly (`Shift + Tab`) between **Explore** (read-only), **Ask to Edit** (confirm before writes), **Guarded** (autonomous with risk checks), and **Execute** (full autonomy).
+- **Mid-Turn Steering** — Guide or refine an agent's direction while it is still running, without cancelling the entire turn.
+- **Multi-Provider Model Connections** — Connect Anthropic, OpenAI / ChatGPT OAuth (with live model discovery), OpenAI-compatible endpoints, or local models, and switch models per session.
+- **MCP Servers, REST APIs & Local Folders** — Plug external tools and data sources into any session via structured setup dialogs (supporting HTTP/SSE, local Stdio commands, and one-click `mcpServers` JSON paste).
+- **Reusable Skills & Automations** — Author `SKILL.md` instruction packs with built-in templates, schedule recurring automations, build persistent HTML **Pages**, and track multi-step work on the **Tasks** board.
+- **Local-First & Privacy-Respecting** — All sessions, skills, and workspace configs stay on your machine under `~/.shiori/` with zero telemetry and no mandatory cloud backend.
+
+---
+
+## What Makes Shiori Distinct
+
+### 1. Creative Lens
+Switch the agent's thinking and aesthetic posture directly from the composer bar. Move seamlessly between **Precision Engineering** (crisp, verifiable diffs and diagnostics) and expressive lenses such as **Editorial & Poetic** or **Architectural Studio** — avoiding generic, watered-down output when writing, brainstorming, or designing.
+
+### 2. Interactive UI Canvas (`shiori-ui`)
+Instead of dumping static HTML files or walls of text, Shiori renders live, sandboxed `shiori-ui` interactive widgets directly inside the conversation. Every widget automatically inherits Shiori's light/dark theme tokens, supports **two-way state feedback** (`window.shiori.send` / `data-shiori-send`) so your clicks steer the next turn, and can be opened fullscreen or **exported as a standalone offline HTML file**.
+
+<p align="center">
+  <img src="docs/assets/shiori-interactive-ui.png" alt="Shiori Interactive UI Canvas — Kyoto Tea Pavilion Study" width="100%" />
+</p>
+
+### 3. Zero-Cost Cloudflare Relay
+Need to reach your desktop workspace securely from another device without paying for a VPS? Shiori includes a self-hostable **Cloudflare Workers + Durable Objects** relay under [`apps/relay`](apps/relay) engineered with strict Free-Plan safeguards (observability logs disabled, 4-client cap, 80k daily request guard) so you can tunnel to your local agent at zero cost.
+
+---
+
+## Installation
+
+Prebuilt **Windows x64** binaries are verified and available on the [Releases](https://github.com/Edmine/Shiori/releases) page (macOS and Linux build scripts are included in the repository; community testing and feedback are welcome):
+
+- **Installer (Recommended)**: `Shiori-Setup-*-x64.exe` — supports custom install paths and preserves `~/.shiori/` data on uninstall.
+- **Portable Archive**: `Shiori-*-win-x64.zip` — extract and run directly.
+
+> **Note on Windows SmartScreen:** Open-source personal builds are not commercially code-signed. If SmartScreen prompts on first launch, choose **More info → Run anyway**.
+
+---
+
+## Local Development & Build
+
+**Prerequisites:** [Bun](https://bun.sh/) 1.3+ and Node.js 20+.
 
 ```bash
-# 安装依赖
+# Install dependencies
 bun install
 
-# 类型检查（Electron）
-bun run typecheck:electron
+# Start Electron in development mode
+bun run electron:dev
 
-# 构建主进程、预加载脚本、渲染层与资源
+# Run type checks and CI validation
+bun run typecheck:electron
+bun run validate:ci
+
+# Build Windows installer & portable zip
 bun run electron:build:main
 bun run electron:build:preload
 bun run electron:build:renderer
 cd apps/electron && bun scripts/copy-assets.ts
-
-# 打包 Windows 安装包与便携压缩包
-cd apps/electron
 bun x electron-builder --win --x64
 ```
 
-## 开源协议与致谢
+See [CONTRIBUTING.md](CONTRIBUTING.md) for architecture notes, i18n checks, and PR guidelines.
 
-本项目基于 [Craft Agents](https://github.com/craft-ai-agents/craft-agents-oss)（`v0.15.11`）二次开发，沿用 **Apache License 2.0** 协议发布，详见 [LICENSE](LICENSE) 与 [NOTICE](NOTICE)。
+---
 
-Shiori 是一个独立衍生项目，与 Craft Docs Ltd. 无隶属或官方背书关系。
+## License & Acknowledgments
+
+Shiori is open-source software licensed under the **Apache License 2.0**. See [LICENSE](LICENSE) and [NOTICE](NOTICE) for full details.
+
+We gratefully acknowledge the open-source projects and ecosystems that made Shiori possible:
+- [Craft Agents](https://github.com/craft-ai-agents/craft-agents-oss) — foundational desktop agent architecture and open-source inspiration
+- [Electron](https://www.electronjs.org/), [React](https://react.dev/), [Bun](https://bun.sh/), [Tailwind CSS](https://tailwindcss.com/), and [Radix UI](https://www.radix-ui.com/)
+- [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) and the broader open AI developer community
+
+Shiori is an independent open-source project and is not affiliated with or endorsed by any upstream vendor.
