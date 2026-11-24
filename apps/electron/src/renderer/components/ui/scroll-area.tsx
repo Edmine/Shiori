@@ -21,7 +21,7 @@ function ScrollArea({
     >
       <ScrollAreaPrimitive.Viewport
         ref={viewportRef}
-        className="h-full w-full rounded-[inherit]"
+        className="h-full w-full rounded-[inherit] overscroll-contain"
       >
         {children}
       </ScrollAreaPrimitive.Viewport>

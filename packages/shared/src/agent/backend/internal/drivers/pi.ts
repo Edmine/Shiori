@@ -2,6 +2,7 @@ import type { ProviderDriver, DriverTestConnectionArgs } from '../driver-types.t
 import type { ModelDefinition } from '../../../../config/models.ts';
 import { getAllPiModels, getPiModelsForAuthProvider } from '../../../../config/models-pi.ts';
 import { getPiProviderBaseUrl } from '../../../../config/models-pi.ts';
+import { fetchOpenAiLiveModels } from './openai-live-models.ts';
 
 // ── Copilot model types ────────────────────────────────────────────────
 type RawCopilotModel = {
@@ -232,11 +233,16 @@ export const piDriver: ProviderDriver = {
       const supportsImages = typeof m.supportsImages === 'boolean'
         ? m.supportsImages
         : undefined;
-      if (m.contextWindow || supportsImages !== undefined) {
+      const supportsThinking = typeof m.supportsThinking === 'boolean'
+        ? m.supportsThinking
+        : undefined;
+      if (m.name || m.contextWindow || supportsImages !== undefined || supportsThinking !== undefined) {
         return {
           id: m.id,
+          ...(m.name ? { name: m.name } : {}),
           ...(m.contextWindow ? { contextWindow: m.contextWindow } : {}),
           ...(supportsImages !== undefined ? { supportsImages } : {}),
+          ...(supportsThinking !== undefined ? { supportsThinking } : {}),
         };
       }
       return m.id;
@@ -250,6 +256,23 @@ export const piDriver: ProviderDriver = {
     if (connection.piAuthProvider === 'github-copilot' && copilotGitHubToken) {
       const models = await fetchCopilotModels(copilotGitHubToken, timeoutMs);
       return { models };
+    }
+
+    // OpenAI (ChatGPT SIWC OAuth & OpenAI API key): query GET /v1/models live
+    // so newly released OpenAI models appear automatically, with graceful
+    // fallback to the static Pi SDK catalog (+ supplemental metadata) when offline.
+    if (connection.piAuthProvider === 'openai' || connection.piAuthProvider === 'openai-codex') {
+      const openaiToken = credentials.oauthAccessToken || credentials.apiKey;
+      const models = await fetchOpenAiLiveModels({
+        token: openaiToken,
+        baseUrl: connection.baseUrl,
+        piAuthProvider: connection.piAuthProvider,
+        timeoutMs,
+        refreshAccessToken: credentials.refreshOAuthAccessToken,
+      });
+      if (models.length > 0) {
+        return { models };
+      }
     }
 
     // All other Pi providers: use static Pi SDK model registry

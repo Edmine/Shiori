@@ -20,6 +20,11 @@ import {
   sanitizePromptLine,
 } from './prompt-sanitize.ts';
 import { findGitRepositoryRoot } from './developer-context.ts';
+import {
+  SHIORI_CREATIVE_PERSONA_SECTION,
+  formatCreativeLensPrompt,
+  type CreativeLensId,
+} from './creative-lenses.ts';
 
 /** Maximum size of CLAUDE.md file to include (10KB) */
 const MAX_CONTEXT_FILE_SIZE = 10 * 1024;
@@ -495,6 +500,7 @@ export function getSystemPrompt(
   includeCoAuthoredBy?: boolean,
   projectContext?: ProjectPromptContext,
   agentProfile?: AgentProfile,
+  creativeLens?: CreativeLensId,
 ): string {
   // Use mini agent prompt for quick edits (pass workspace root for config paths)
   if (preset === 'mini') {
@@ -522,7 +528,8 @@ export function getSystemPrompt(
   const basePrompt = agentProfile === 'coding'
     ? getCodingAssistantPrompt(workspaceRootPath, backendName, resolvedIncludeCoAuthoredBy)
     : getCraftAssistantPrompt(workspaceRootPath, backendName, resolvedIncludeCoAuthoredBy);
-  const fullPrompt = `${basePrompt}${preferences}${projectBlock}${debugContext}${projectContextFiles}`;
+  const creativeLensBlock = agentProfile === 'coding' ? '' : formatCreativeLensPrompt(creativeLens);
+  const fullPrompt = `${basePrompt}${creativeLensBlock}${preferences}${projectBlock}${debugContext}${projectContextFiles}`;
 
   debug('[getSystemPrompt] full prompt length:', fullPrompt.length);
 
@@ -803,6 +810,14 @@ Built-in document CLIs are available via Bash: \`markitdown\`, \`pdf-tool\`, \`x
 
 Prefer \`markitdown\` as the universal converter when Read cannot handle a binary document. All tools support \`--help\`; most support \`-o <file>\` for output.`;
 
+/** `## Progress Updates` (both base prompts): visible Codex-style progress commentary during multi-step runs. */
+const PROGRESS_UPDATES_SECTION = `## Progress Updates
+
+Keep the user informed during multi-step work with brief visible text updates directly in the chat stream (in the user's language):
+- **Visible text is required**: Private thinking/reasoning blocks and tool \`_intent\`/\`_displayName\` metadata are collapsed inside the tool log and are NOT shown as chat updates. Never rely on thinking or \`_intent\` alone to report progress.
+- **When to report**: Write a short update before starting a batch of tool calls, at phase transitions (investigation -> plan/edits -> verification), after ~5-8 tool calls without an update, and immediately when user login, approval, or input is needed.
+- **Stay concise and grouped**: Write 1-2 natural sentences stating what you just learned or will do next. Group related reads/searches/edits under one update rather than narrating every single trivial tool call.`;
+
 /**
  * Permission modes table and per-mode rules. Guarded is always listed: Claude snapshots the
  * system prompt, so a session switched to Guarded after it started must still find the row.
@@ -868,7 +883,7 @@ ${getBrowserToolsSection('Use `browser_tool` for one-off or UI-driven browser ta
 
   return `${environmentMarker}
 
-You are Shiori - an AI desktop assistant that helps users work across local projects, tools, and data sources through a calm, focused desktop interface.
+${SHIORI_CREATIVE_PERSONA_SECTION}
 
 **Core capabilities:**
 - **Connect external sources** - MCP servers, REST APIs, local filesystems. Users can integrate Linear, GitHub, Craft, custom APIs, and more.
@@ -964,12 +979,14 @@ When you learn information about the user (their name, timezone, location, langu
 ## Interaction Guidelines
 
 1. **Be Concise**: Provide focused, actionable responses.
-2. **Show Progress**: Briefly explain multi-step operations as you perform them.
+2. **Show Progress**: Follow \`## Progress Updates\` — write brief visible progress updates before tool batches and at key transitions; do not stay silent until all work finishes.
 3. **Confirm Destructive Actions**: Always ask before deleting content.
 4. **Use Available Tools**: Only call tools that exist. Check the tool list and use exact names.
 5. **Present File Paths, Links As Clickable Markdown Links**: Format file paths and URLs as clickable markdown links for easy access instead of code formatting.
 6. **Nice Markdown Formatting**: The user sees your responses rendered in markdown. Use headings, lists, bold/italic text, and code blocks for clarity. Basic HTML is also supported, but use sparingly.
 7. **Math Delimiters**: Use \`$$...$$\` for math expressions. Do NOT use single-dollar delimiters (\`$...$\`) in normal prose so currency values like \`$100\` or \`$2M–$4M\` stay plain text.
+
+${PROGRESS_UPDATES_SECTION}
 
 !!IMPORTANT!!. You must refer to yourself as Shiori when asked. You can acknowledge that you are powered by ${backendName}.
 
@@ -1118,7 +1135,7 @@ All MCP tools require two metadata fields (schema-enforced):
 - **\`_displayName\`** (required): Short name for the action (2-4 words), e.g., "List Folders", "Search Documents"
 - **\`_intent\`** (required): Brief description of what you're trying to accomplish (1-2 sentences)
 
-These help with UI feedback and result summarization.${FEATURE_FLAGS.developerFeedback ? `
+These label individual rows inside the collapsed tool log only — they do not replace visible chat progress updates.${FEATURE_FLAGS.developerFeedback ? `
 
 ${DEVELOPER_FEEDBACK_SECTION}` : ''}`;
 }
@@ -1157,6 +1174,8 @@ You are Shiori in **Coding mode**, powered by ${backendName}: a software enginee
 
 - Be concise. Reference code as \`file_path:line\`; the UI renders it as a clickable link.
 - Show proposed or applied changes as unified diffs; they render natively as diff views.
+
+${PROGRESS_UPDATES_SECTION}
 
 ${PREVIEW_BLOCKS_SECTION}
 

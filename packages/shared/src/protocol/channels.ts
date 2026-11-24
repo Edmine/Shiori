@@ -230,6 +230,12 @@ export const RPC_CHANNELS = {
     GET_SERVER_CONFIG: 'settings:getServerConfig',
     SET_SERVER_CONFIG: 'settings:setServerConfig',
     GET_SERVER_STATUS: 'settings:getServerStatus',
+    GET_RELAY_STATUS: 'settings:getRelayStatus',
+    SET_RELAY_CONFIG: 'settings:setRelayConfig',
+    ROTATE_RELAY_KEYS: 'settings:rotateRelayKeys',
+    CF_VERIFY_TOKEN: 'settings:cfVerifyToken',
+    CF_DEPLOY_RELAY: 'settings:cfDeployRelay',
+    CF_DELETE_RELAY: 'settings:cfDeleteRelay',
   },
   pi: {
     GET_API_KEY_PROVIDERS: 'pi:getApiKeyProviders',
@@ -280,6 +286,7 @@ export const RPC_CHANNELS = {
   skills: {
     GET: 'skills:get',
     GET_FILES: 'skills:getFiles',
+    CREATE: 'skills:create',
     DELETE: 'skills:delete',
     OPEN_EDITOR: 'skills:openEditor',
     OPEN_FINDER: 'skills:openFinder',

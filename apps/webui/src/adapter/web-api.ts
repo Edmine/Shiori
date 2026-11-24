@@ -67,18 +67,24 @@ export interface WebApiOptions {
   serverUrl: string
   /** Workspace ID to connect as. */
   workspaceId?: string
+  /** Optional AES-256-GCM frame codec for Cloudflare Workers relay E2EE */
+  frameCodec?: {
+    encode: (raw: string) => Promise<string> | string
+    decode: (raw: string) => Promise<string> | string
+  }
 }
 
 export function createWebApi(options: WebApiOptions): {
   api: ElectronAPI
   client: WsRpcClient
 } {
-  const { serverUrl, workspaceId } = options
+  const { serverUrl, workspaceId, frameCodec } = options
 
   const client = new WsRpcClient(serverUrl, {
     workspaceId,
     autoReconnect: true,
     mode: 'remote',
+    frameCodec,
     // No token — auth is via session cookie sent on WebSocket upgrade
   })
 

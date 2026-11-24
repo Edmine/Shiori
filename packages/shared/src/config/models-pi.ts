@@ -28,16 +28,58 @@ import { fromPiProviderId, toPiProviderId } from './pi-provider-ids.ts';
 function piModelToDefinition(m: Model<Api>): ModelDefinition {
   const lastPart = m.name.split(/[\s-]/).pop() ?? m.name;
   const shortName = m.name.length > 20 ? lastPart : m.name;
+  const supportsImages = Array.isArray(m.input) ? m.input.includes('image') : undefined;
 
   return {
     id: `pi/${m.id}`,
     name: m.name,
     shortName,
-    description: `${m.provider} model via Craft Agents Backend`,
+    description: '',
     provider: 'pi',
     contextWindow: m.contextWindow,
     supportsThinking: m.reasoning,
+    ...(supportsImages !== undefined ? { supportsImages } : {}),
   };
+}
+
+/**
+ * Supplemental OpenAI models released ahead of the bundled @earendil-works/pi-ai
+ * static catalog. Automatically deduped once the upstream Pi SDK includes them.
+ */
+const PI_SUPPLEMENTAL_OPENAI_MODELS: readonly Omit<ModelDefinition, 'description'>[] = [
+  {
+    id: 'pi/gpt-6.2-astra',
+    name: 'GPT-6.2 Astra',
+    shortName: 'GPT-6.2 Astra',
+    provider: 'pi',
+    contextWindow: 272_000,
+    supportsThinking: true,
+    supportsImages: true,
+  },
+  {
+    id: 'pi/gpt-6.2-sol',
+    name: 'GPT-6.2 Sol',
+    shortName: 'GPT-6.2 Sol',
+    provider: 'pi',
+    contextWindow: 272_000,
+    supportsThinking: true,
+    supportsImages: true,
+  },
+];
+
+/**
+ * Return supplemental built-in models for a Pi auth provider that may not yet
+ * exist in the pinned @earendil-works/pi-ai static JSON catalog.
+ */
+export function getSupplementalPiModels(piAuthProvider: string): ModelDefinition[] {
+  const canonical = toPiProviderId(piAuthProvider);
+  if (canonical === 'openai' || canonical === 'openai-codex') {
+    return PI_SUPPLEMENTAL_OPENAI_MODELS.map((model) => ({
+      ...model,
+      description: '',
+    }));
+  }
+  return [];
 }
 
 /**
@@ -68,7 +110,7 @@ const PI_EXCLUDED_MODEL_PREFIXES: string[] = [
   'gpt-4',
 ];
 
-function isExcludedPiModel(modelId: string): boolean {
+export function isExcludedPiModel(modelId: string): boolean {
   if (PI_EXCLUDED_MODELS.has(modelId)) return true;
   return PI_EXCLUDED_MODEL_PREFIXES.some(prefix => modelId.startsWith(prefix));
 }
@@ -91,18 +133,22 @@ export function getPiModelsForAuthProvider(piAuthProvider: string): ModelDefinit
   try {
     const models = getModels(toPiProviderId(piAuthProvider) as Parameters<typeof getModels>[0]);
     if (models.length > 0) {
-      return models
+      const baseModels = models
         .filter(m => !isExcludedPiModel(m.id))
         // Bedrock: exclude bare Claude models without region prefix — they're
         // always rejected by Bedrock which requires inference profiles (us.*/eu.*/global.*).
         // Regional variants from the same catalog are kept.
         .filter(m => piAuthProvider !== 'amazon-bedrock' || !isBareBedrockClaudeModel(m.id))
         .map(piModelToDefinition);
+
+      const existingIds = new Set(baseModels.map(m => m.id));
+      const supplemental = getSupplementalPiModels(piAuthProvider).filter(m => !existingIds.has(m.id));
+      return [...baseModels, ...supplemental];
     }
   } catch {
     // Provider not recognized by SDK — fall through
   }
-  return [];
+  return getSupplementalPiModels(piAuthProvider);
 }
 
 /**
@@ -110,13 +156,23 @@ export function getPiModelsForAuthProvider(piAuthProvider: string): ModelDefinit
  */
 export function getAllPiModels(): ModelDefinition[] {
   const allModels: ModelDefinition[] = [];
+  const seenIds = new Set<string>();
   for (const provider of getProviders()) {
     try {
       const models = getModels(provider);
-      allModels.push(...models
+      const mapped = models
         .filter(m => !isExcludedPiModel(m.id))
-        .map(piModelToDefinition)
-      );
+        .map(piModelToDefinition);
+      for (const m of mapped) {
+        seenIds.add(m.id);
+        allModels.push(m);
+      }
+      for (const extra of getSupplementalPiModels(provider)) {
+        if (!seenIds.has(extra.id)) {
+          seenIds.add(extra.id);
+          allModels.push(extra);
+        }
+      }
     } catch {
       // Skip providers that fail
     }

@@ -1,11 +1,16 @@
 {
   "name": "@craft-agent/electron",
-  "version": "0.15.11",
+  "version": "0.2.0",
   "description": "Shiori desktop AI workspace",
   "main": "dist/main.cjs",
   "private": true,
   "author": {
     "name": "Shiori"
+  },
+  "homepage": "https://github.com/Edmine/Shiori",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Edmine/Shiori.git"
   },
   "license": "Apache-2.0",
   "type": "module",

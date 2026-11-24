@@ -26,7 +26,7 @@ export interface BackendRuntimePayload extends Record<string, unknown> {
   /** Custom endpoint protocol config (api type for routing). */
   customEndpoint?: CustomEndpointConfig;
   /** Models registered for a custom endpoint. Strings default to 128K context; objects allow overrides. */
-  customModels?: Array<string | { id: string; contextWindow?: number; supportsImages?: boolean }>;
+  customModels?: Array<string | { id: string; name?: string; contextWindow?: number; supportsImages?: boolean; supportsThinking?: boolean }>;
 }
 
 export interface BackendResolutionContext {
@@ -48,6 +48,7 @@ export interface BackendModelFetchCredentials {
   oauthAccessToken?: string;
   oauthRefreshToken?: string;
   oauthIdToken?: string;
+  refreshOAuthAccessToken?: () => Promise<string | undefined>;
 }
 
 export interface DriverHostRuntimeArgs {

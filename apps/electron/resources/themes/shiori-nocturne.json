@@ -1,0 +1,25 @@
+{
+  "name": "Shiori Nocturne",
+  "description": "Opera-house velvet midnight, ivory text, and antique gold highlights",
+  "author": "Shiori",
+  "license": "MIT",
+  "supportedModes": ["dark", "light"],
+  "shikiTheme": {
+    "light": "rose-pine-dawn",
+    "dark": "tokyo-night"
+  },
+  "background": "#f5f2ec",
+  "foreground": "#1d2230",
+  "accent": "#9e7328",
+  "info": "#4a628a",
+  "success": "#3b755f",
+  "destructive": "#a63a4b",
+  "dark": {
+    "background": "#12141c",
+    "foreground": "#eeeae0",
+    "accent": "#cfa355",
+    "info": "#7c98c4",
+    "success": "#6ea892",
+    "destructive": "#d96b7c"
+  }
+}

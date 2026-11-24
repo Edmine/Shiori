@@ -19,6 +19,9 @@ export interface UpdatePreferencesArgs {
   region?: string;
   country?: string;
   notes?: string;
+  tasteAesthetics?: string;
+  tasteReferences?: string;
+  tasteAvoid?: string;
   includeCoAuthoredBy?: boolean;
 }
 
@@ -66,15 +69,35 @@ export async function handleUpdatePreferences(
       updates.notes = args.notes;
     }
 
+    // Handle aesthetic & creative taste profile
+    if (args.tasteAesthetics || args.tasteReferences || args.tasteAvoid) {
+      const taste: Record<string, string> = {};
+      if (args.tasteAesthetics && typeof args.tasteAesthetics === 'string') {
+        taste.aesthetics = args.tasteAesthetics;
+      }
+      if (args.tasteReferences && typeof args.tasteReferences === 'string') {
+        taste.references = args.tasteReferences;
+      }
+      if (args.tasteAvoid && typeof args.tasteAvoid === 'string') {
+        taste.avoid = args.tasteAvoid;
+      }
+      if (Object.keys(taste).length > 0) {
+        updates.taste = taste;
+      }
+    }
+
     // Handle co-author preference (explicit boolean)
     if (typeof args.includeCoAuthoredBy === 'boolean') {
       updates.includeCoAuthoredBy = args.includeCoAuthoredBy;
     }
 
     // Check if anything was actually updated
-    const fields = Object.keys(updates).filter(k => k !== 'location');
+    const fields = Object.keys(updates).filter(k => k !== 'location' && k !== 'taste');
     if (updates.location) {
       fields.push(...Object.keys(updates.location as Record<string, string>).map(k => `location.${k}`));
+    }
+    if (updates.taste) {
+      fields.push(...Object.keys(updates.taste as Record<string, string>).map(k => `taste.${k}`));
     }
 
     if (fields.length === 0) {

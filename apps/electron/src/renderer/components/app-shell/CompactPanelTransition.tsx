@@ -27,6 +27,8 @@ interface CompactPanelTransitionProps {
   role: CompactPanelRole
   /** True when the detail panel should be the active foreground. */
   isDetailActive: boolean
+  /** Fired after the transition finishes settling */
+  onTransitionComplete?: () => void
   children: React.ReactNode
 }
 
@@ -40,6 +42,7 @@ interface CompactPanelTransitionProps {
 export function CompactPanelTransition({
   role,
   isDetailActive,
+  onTransitionComplete,
   children,
 }: CompactPanelTransitionProps) {
   const isOffscreen = role === 'navigator' ? isDetailActive : !isDetailActive
@@ -49,9 +52,8 @@ export function CompactPanelTransition({
 
   return (
     <motion.div
-      className="absolute left-0 right-0 bottom-0"
+      className="absolute inset-0"
       style={{
-        top: 'var(--compact-panel-stack-top, 0px)',
         // Detail layers above navigator during the transition.
         zIndex: role === 'detail' ? 10 : 0,
         // Hint the compositor; cheap on GPU and prevents jank on first frame.
@@ -60,9 +62,10 @@ export function CompactPanelTransition({
         pointerEvents: isOffscreen ? 'none' : 'auto',
       }}
       aria-hidden={isOffscreen || undefined}
-      initial={false}
+      initial={role === 'detail' && isDetailActive ? { x: '100%' } : false}
       animate={{ x: isOffscreen ? offscreenX : '0%' }}
       transition={SPRING.panel}
+      onAnimationComplete={onTransitionComplete}
     >
       {children}
     </motion.div>

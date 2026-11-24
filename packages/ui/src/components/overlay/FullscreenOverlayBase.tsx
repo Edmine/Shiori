@@ -106,7 +106,7 @@ export function FullscreenOverlayBase({
   copyContent,
   error,
 }: FullscreenOverlayBaseProps) {
-  const { onSetTrafficLightsVisible } = usePlatform()
+  const { onSetTrafficLightsVisible, windowCaptionInsetRight } = usePlatform()
 
   // Determine if we should render the structured header.
   // Any header-related prop triggers header rendering.
@@ -200,6 +200,7 @@ export function FullscreenOverlayBase({
                 subtitle={subtitle}
                 headerActions={headerActions}
                 copyContent={copyContent}
+                windowCaptionInsetRight={windowCaptionInsetRight}
               />
             </div>
           )}

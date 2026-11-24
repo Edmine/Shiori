@@ -402,7 +402,12 @@ export function NavigationProvider({
    * Uses reconcilePanelStackAtom for smart matching (preserves React keys).
    */
   const reconcileFromUrlParams = useCallback(
-    (params: URLSearchParams) => {
+    (params: URLSearchParams, options?: { skipAutoSelect?: boolean }) => {
+      if (options?.skipAutoSelect) {
+        suppressAutoSelectRef.current = true
+      } else {
+        suppressAutoSelectRef.current = false
+      }
       const initialRoute = params.get('route')
       const sidebarParam = params.get('sidebar') || undefined
       const panelsParam = params.get('panels')
@@ -433,12 +438,12 @@ export function NavigationProvider({
             const proportion = parseFloat(entry.slice(colonIdx + 1))
             if (!isNaN(proportion) && proportion > 0 && proportion < 1) {
               const rawRoute = entry.slice(0, colonIdx) as ViewRoute
-              const route = normalizePanelRouteForReconcile(rawRoute, (state) => resolveAutoSelectionRef.current(state))
+              const route = normalizePanelRouteForReconcile(rawRoute, (state) => resolveAutoSelectionRef.current(state, options))
               return { route, proportion }
             }
           }
           const rawRoute = entry as ViewRoute
-          const route = normalizePanelRouteForReconcile(rawRoute, (state) => resolveAutoSelectionRef.current(state))
+          const route = normalizePanelRouteForReconcile(rawRoute, (state) => resolveAutoSelectionRef.current(state, options))
           return { route, proportion: 0 }
         })
 
@@ -460,7 +465,7 @@ export function NavigationProvider({
         if (navState) {
           const finalRoute = ('details' in navState && navState.details)
             ? (initialRoute as ViewRoute)
-            : (buildRouteFromNavigationState(resolveAutoSelectionRef.current(navState)) as ViewRoute)
+            : (buildRouteFromNavigationState(resolveAutoSelectionRef.current(navState, options)) as ViewRoute)
           entries = [{ route: finalRoute, proportion: 1 }]
         }
       }
@@ -975,7 +980,7 @@ export function NavigationProvider({
 
       // Same workspace — reconcile panels from the URL
       suppressPushRef.current = true
-      reconcileFromUrlParamsRef.current(params)
+      reconcileFromUrlParamsRef.current(params, { skipAutoSelect: true })
       lastSemanticHistoryKeyRef.current = getSemanticHistoryKey()
       requestAnimationFrame(() => {
         suppressPushRef.current = false
@@ -1160,10 +1165,18 @@ export function NavigationProvider({
 
   useEffect(() => {
     const handleNavigateEvent = (event: Event) => {
-      const customEvent = event as CustomEvent<{ route: Route; newPanel?: boolean; targetLaneId?: 'main' }>
+      const customEvent = event as CustomEvent<{ route: Route } & NavigateOptions>
       if (customEvent.detail?.route) {
-        const { route: r, newPanel, targetLaneId } = customEvent.detail
-        navigate(r, newPanel ? { newPanel, targetLaneId } : undefined)
+        const { route: r, newPanel, targetLaneId, skipAutoSelect } = customEvent.detail
+        const options: NavigateOptions | undefined =
+          newPanel || targetLaneId || skipAutoSelect
+            ? {
+                ...(newPanel ? { newPanel } : {}),
+                ...(targetLaneId ? { targetLaneId } : {}),
+                ...(skipAutoSelect ? { skipAutoSelect } : {}),
+              }
+            : undefined
+        navigate(r, options)
       }
     }
 

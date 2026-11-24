@@ -69,6 +69,17 @@ describe('models-pi filtering', () => {
     expect(getPiModelsForAuthProvider('openai-codex').map(m => m.id)).toContain('pi/gpt-6-astra');
   });
 
+  it('includes supplemental GPT-6.2 models for OpenAI and openai-codex without duplicates', () => {
+    for (const provider of ['openai', 'openai-codex'] as const) {
+      const models = getPiModelsForAuthProvider(provider);
+      const ids = models.map(m => m.id);
+      expect(ids).toContain('pi/gpt-6.2-astra');
+      expect(ids).toContain('pi/gpt-6.2-sol');
+      expect(ids.filter(id => id === 'pi/gpt-6.2-astra')).toHaveLength(1);
+      expect(ids.filter(id => id === 'pi/gpt-6.2-sol')).toHaveLength(1);
+    }
+  });
+
   it('returns Kimi K3 from the Pi SDK catalog for both Moonshot providers', () => {
     const ids = getPiModelsForAuthProvider('moonshotai').map(m => m.id);
     expect(ids).toContain('pi/kimi-k3');

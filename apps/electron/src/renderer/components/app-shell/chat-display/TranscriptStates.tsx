@@ -86,11 +86,11 @@ export function NoRenderableMessages() {
 }
 
 /** Empty state for compact mode (popover embedding): conversational prompt, centered. */
-export function CompactEmptyState() {
+export function CompactEmptyState({ title }: { title?: string }) {
   const { t } = useTranslation()
   return (
     <div className="pointer-events-none absolute inset-0 flex select-none flex-col items-center justify-center gap-1">
-      <span className="text-label text-secondary">{t("editPopover.whatToChange")}</span>
+      <span className="text-label text-secondary">{title || t("editPopover.whatToChange")}</span>
       <span className="text-label-sm text-tertiary">{t("editPopover.justDescribe")}</span>
     </div>
   )

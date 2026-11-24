@@ -11,6 +11,7 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 import { createWebApi } from './adapter/web-api'
+import { createE2eFrameCodec, E2E_STORAGE_KEY } from '@craft-agent/server-core/relay/e2e-crypto'
 import type { WsRpcClient } from '../../electron/src/transport/client'
 
 // Lazy-load the Electron App after window.electronAPI is set up.
@@ -47,6 +48,7 @@ function ErrorScreen({ message, onRetry }: { message: string; onRetry: () => voi
         </button>
         <button
           onClick={() => {
+            try { localStorage.removeItem(E2E_STORAGE_KEY) } catch {}
             fetch('/api/auth/logout', { method: 'POST' }).then(() => {
               window.location.href = '/login'
             })
@@ -82,8 +84,19 @@ export default function App() {
         throw new Error(`Failed to fetch config: ${configRes.status}`)
       }
 
-      const { wsUrl } = await configRes.json() as { wsUrl: string }
+      const { wsUrl, e2eRequired } = await configRes.json() as { wsUrl: string; e2eRequired?: boolean }
       if (!wsUrl) throw new Error('Server did not return a WebSocket URL')
+
+      let frameCodec: { encode: (raw: string) => Promise<string>; decode: (raw: string) => Promise<string> } | undefined
+      if (e2eRequired) {
+        const storedKey = (() => {
+          try { return localStorage.getItem(E2E_STORAGE_KEY) } catch { return null }
+        })()
+        if (!storedKey) {
+          throw new Error('缺少端到端加密密钥，请重新扫描电脑端 Shiori 的公网中继二维码。')
+        }
+        frameCodec = await createE2eFrameCodec(storedKey)
+      }
 
       // 2. Determine workspace — check URL params first
       const params = new URLSearchParams(window.location.search)
@@ -113,7 +126,7 @@ export default function App() {
         clientRef.current.destroy()
       }
 
-      const { api, client } = createWebApi({ serverUrl: wsUrl, workspaceId })
+      const { api, client } = createWebApi({ serverUrl: wsUrl, workspaceId, frameCodec })
       clientRef.current = client
 
       // 4. Set window.electronAPI — must happen before any Electron component mounts

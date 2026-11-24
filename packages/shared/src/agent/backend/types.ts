@@ -44,7 +44,7 @@ export interface BackendRuntimeUpdate {
     baseUrl?: string;
     piAuthProvider?: string;
     customEndpoint?: CustomEndpointConfig;
-    customModels?: Array<string | { id: string; contextWindow?: number; supportsImages?: boolean }>;
+    customModels?: Array<string | { id: string; name?: string; contextWindow?: number; supportsImages?: boolean; supportsThinking?: boolean }>;
     [key: string]: unknown;
   };
 }

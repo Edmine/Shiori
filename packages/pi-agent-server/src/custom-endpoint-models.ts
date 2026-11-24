@@ -23,8 +23,10 @@ export interface CustomEndpointModelDefaults {
 }
 
 export interface CustomEndpointModelOverrides {
+  name?: string
   contextWindow?: number
   supportsImages?: boolean
+  supportsThinking?: boolean
 }
 
 export interface CustomEndpointModelEntry extends CustomEndpointModelOverrides {
@@ -33,8 +35,10 @@ export interface CustomEndpointModelEntry extends CustomEndpointModelOverrides {
 
 export type CustomEndpointModelConfig = string | {
   id: string
+  name?: string
   contextWindow?: number
   supportsImages?: boolean
+  supportsThinking?: boolean
 }
 
 /** Strip bare model IDs (remove pi/ prefix if present). */
@@ -56,8 +60,10 @@ export function normalizeCustomEndpointModelEntry(model: CustomEndpointModelConf
 
   return {
     id: stripPiPrefix(model.id),
+    ...(model.name ? { name: model.name } : {}),
     ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
     ...(model.supportsImages !== undefined ? { supportsImages: model.supportsImages } : {}),
+    ...(model.supportsThinking !== undefined ? { supportsThinking: model.supportsThinking } : {}),
   }
 }
 
@@ -99,8 +105,8 @@ export function buildCustomEndpointModelDef(
 
   return {
     id,
-    name: id,
-    reasoning: false,
+    name: overrides?.name || id,
+    reasoning: overrides?.supportsThinking ?? false,
     input,
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: overrides?.contextWindow ?? 131_072,

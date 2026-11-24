@@ -48,6 +48,8 @@ export interface ModelFetcherCredentials {
   oauthAccessToken?: string;
   oauthRefreshToken?: string;
   oauthIdToken?: string;
+  /** Optional callback to refresh and persist a fresh OAuth access token (e.g., on 401). */
+  refreshOAuthAccessToken?: () => Promise<string | undefined>;
 }
 
 /**

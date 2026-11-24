@@ -43,6 +43,26 @@ describe('handleUpdatePreferences', () => {
     expect(writes).toHaveLength(0);
   });
 
+  it('merges tasteAesthetics/tasteReferences/tasteAvoid into a single taste object', async () => {
+    const { ctx, writes } = createCtx();
+    const result = await handleUpdatePreferences(ctx, {
+      tasteAesthetics: 'Washi minimalism & Viennese opera',
+      tasteReferences: 'Song-dynasty ink wash, Dieter Rams',
+      tasteAvoid: 'Generic purple-gradient SaaS cards',
+    });
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toEqual({
+      taste: {
+        aesthetics: 'Washi minimalism & Viennese opera',
+        references: 'Song-dynasty ink wash, Dieter Rams',
+        avoid: 'Generic purple-gradient SaaS cards',
+      },
+    });
+    expect(result.content[0]?.text).toContain('taste.aesthetics');
+    expect(result.content[0]?.text).toContain('taste.references');
+    expect(result.content[0]?.text).toContain('taste.avoid');
+  });
+
   it('responds gracefully when no recognised fields are provided', async () => {
     const { ctx, writes } = createCtx();
     const result = await handleUpdatePreferences(ctx, {});

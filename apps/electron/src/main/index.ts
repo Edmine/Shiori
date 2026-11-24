@@ -3,7 +3,7 @@
 import { loadShellEnv } from './shell-env'
 loadShellEnv()
 
-import { app, BrowserWindow, dialog, ipcMain, nativeImage, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, nativeTheme, powerMonitor, shell } from 'electron'
 import { createHash, randomUUID } from 'crypto'
 import { hostname, homedir } from 'os'
 import * as Sentry from '@sentry/electron/main'
@@ -86,7 +86,12 @@ import type { HandlerDeps } from './handlers/handler-deps'
 import { bootstrapServer, releaseServerLock } from '@craft-agent/server-core/bootstrap'
 import { createMessagingBootstrap, type MessagingBootstrapHandle } from '@craft-agent/messaging-gateway'
 import { getCredentialManager } from '@craft-agent/shared/credentials'
-import { initModelRefreshService, getModelRefreshService, setFetcherPlatform } from '@craft-agent/server-core/model-fetchers'
+import {
+  initModelRefreshService,
+  getModelRefreshService,
+  setFetcherPlatform,
+  createDefaultModelFetcherCredentialResolver,
+} from '@craft-agent/server-core/model-fetchers'
 import { setSearchPlatform, setImageProcessor } from '@craft-agent/server-core/services'
 import { createApplicationMenu } from './menu'
 import { WindowManager } from './window-manager'
@@ -209,6 +214,7 @@ let windowManager: WindowManager | null = null
 let sessionManager: SessionManager | null = null
 let browserPaneManager: BrowserPaneManager | null = null
 let oauthFlowStore: OAuthFlowStore | null = null
+let relayTunnelClient: import('@craft-agent/server-core/relay').RelayTunnelClient | null = null
 let moduleSink: EventSink | null = null
 let moduleClientResolver: ((webContentsId: number) => string | undefined) | null = null
 
@@ -602,7 +608,7 @@ app.whenReady().then(async () => {
       const serverModeEnabled = embeddedServerConfig.enabled && !isClientOnly
 
       // Derive host/port/token from server config (or env overrides)
-      const serverToken = serverModeEnabled && embeddedServerConfig.token
+      const serverToken = embeddedServerConfig.token
         ? embeddedServerConfig.token
         : randomUUID()
       const rpcHost = process.env.CRAFT_RPC_HOST
@@ -629,12 +635,47 @@ app.whenReady().then(async () => {
         mainLog.info(`[server-mode] Enabled — binding ${rpcHost}:${rpcPort}${tls ? ' (TLS)' : ''}`)
       }
 
+      // When server mode is enabled, also mount the mobile-responsive WebUI on the same port
+      // so phones/tablets can connect directly via http(s)://<LAN-IP>:<port>.
+      const webuiDirCandidates = [
+        join(__dirname, 'webui'),
+        join(process.cwd(), 'apps', 'webui', 'dist'),
+      ]
+      const resolvedWebuiDir = webuiDirCandidates.find(dir => existsSync(join(dir, 'index.html')))
+      let embeddedWebuiHandler: import('@craft-agent/server-core/webui').WebuiHandler | null = null
+      let webuiHttpHandler: ((req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => void) | undefined
+      let webuiValidateCookie: ((cookieHeader: string | null) => Promise<boolean>) | undefined
+
+      if (!isClientOnly && resolvedWebuiDir) {
+        const { createWebuiHandler, nodeHttpAdapter, validateSession } = await import('@craft-agent/server-core/webui')
+        embeddedWebuiHandler = createWebuiHandler({
+          webuiDir: resolvedWebuiDir,
+          secret: serverToken,
+          wsProtocol: tls ? 'wss' : 'ws',
+          wsPort: rpcPort,
+          getHealthCheck: () => ({ status: 'ok' }),
+          logger: platform.logger,
+          getRelayE2eKey: () => relayTunnelClient?.getActiveE2eKey(),
+        })
+        webuiValidateCookie = async (cookieHeader) => (await validateSession(cookieHeader, serverToken)) !== null
+        if (serverModeEnabled) {
+          webuiHttpHandler = nodeHttpAdapter(embeddedWebuiHandler.fetch)
+          mainLog.info(`[server-mode] Mobile WebUI mounted from ${resolvedWebuiDir}`)
+        } else {
+          mainLog.info(`[relay] Embedded WebUI handler ready in-process from ${resolvedWebuiDir}`)
+        }
+      } else if (serverModeEnabled) {
+        mainLog.warn('[server-mode] WebUI bundle not found; only WS RPC is available')
+      }
+
       // Bootstrap the WS RPC server via shared bootstrap function.
       const instance = await bootstrapServer<SessionManager, HandlerDeps>({
         serverToken,
         rpcHost,
         rpcPort,
         tls,
+        httpHandler: webuiHttpHandler,
+        validateSessionCookie: webuiValidateCookie,
         bundledAssetsRoot: __dirname,
         serverId: 'local',
         serverVersion: app.getVersion(),
@@ -718,20 +759,7 @@ app.whenReady().then(async () => {
           : registerAllRpcHandlers,
         setSessionEventSink: (sm, sink) => sm.setEventSink(sink),
         initializeSessionManager: (sm) => sm.initialize(),
-        initModelRefreshService: () => initModelRefreshService(async (slug: string) => {
-          const { getCredentialManager } = await import('@craft-agent/shared/credentials')
-          const manager = getCredentialManager()
-          const [apiKey, oauth] = await Promise.all([
-            manager.getLlmApiKey(slug).catch(() => null),
-            manager.getLlmOAuth(slug).catch(() => null),
-          ])
-          return {
-            apiKey: apiKey ?? undefined,
-            oauthAccessToken: oauth?.accessToken,
-            oauthRefreshToken: oauth?.refreshToken,
-            oauthIdToken: oauth?.idToken,
-          }
-        }),
+        initModelRefreshService: () => initModelRefreshService(createDefaultModelFetcherCredentialResolver()),
         onClientConnected: ({ clientId, webContentsId }) => {
           if (webContentsId != null) clientMap.set(webContentsId, clientId)
         },
@@ -994,6 +1022,9 @@ app.whenReady().then(async () => {
         if (cfg.tlsKeyPath && !existsSync(cfg.tlsKeyPath)) {
           throw new Error(`Private key file not found: ${cfg.tlsKeyPath}`)
         }
+        if (cfg.enabled && !cfg.token) {
+          cfg.token = randomUUID()
+        }
         setConfig(cfg)
       })
 
@@ -1001,20 +1032,49 @@ app.whenReady().then(async () => {
         const { getServerConfig: getConfig } = await import('@craft-agent/shared/config')
         const saved = getConfig()
         const protocol = runningServerState.tls ? 'wss' : 'ws'
+        const httpProtocol = runningServerState.tls ? 'https' : 'http'
 
-        // Determine display host (LAN IP if bound to 0.0.0.0)
+        // Collect and prioritize LAN / Tailscale IPv4 addresses when bound to 0.0.0.0
         let displayHost = runningServerState.host
+        const lanAddresses: Array<{ label: string; ip: string; webUrl: string; wsUrl: string }> = []
         if (displayHost === '0.0.0.0' || displayHost === '::') {
           const os = await import('os')
           const nets = os.networkInterfaces()
+          const candidates: Array<{ label: string; ip: string; priority: number }> = []
           for (const name of Object.keys(nets)) {
             for (const net of nets[name] ?? []) {
               if (net.family === 'IPv4' && !net.internal) {
-                displayHost = net.address
-                break
+                const ip = net.address
+                const lower = name.toLowerCase()
+                const isTailscale = lower.includes('tailscale') || /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(ip)
+                const isVirtual = /vethernet|wsl|docker|hyper-v|vmware|virtualbox|vbox|loopback|teredo|zerotier/.test(lower)
+                const isPrivateLan = /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip)
+                let priority = 30
+                let label = name
+                if (isTailscale) {
+                  priority = 20
+                  label = 'Tailscale'
+                } else if (!isVirtual && isPrivateLan) {
+                  priority = /wi-?fi|wlan|wireless/i.test(name) ? 5 : 10
+                  label = /wi-?fi|wlan|wireless/i.test(name) ? 'Wi-Fi' : name
+                } else if (isVirtual) {
+                  priority = 90
+                }
+                candidates.push({ label, ip, priority })
               }
             }
-            if (displayHost !== '0.0.0.0' && displayHost !== '::') break
+          }
+          candidates.sort((a, b) => a.priority - b.priority)
+          for (const candidate of candidates) {
+            lanAddresses.push({
+              label: candidate.label,
+              ip: candidate.ip,
+              webUrl: `${httpProtocol}://${candidate.ip}:${runningServerState.port}`,
+              wsUrl: `${protocol}://${candidate.ip}:${runningServerState.port}`,
+            })
+          }
+          if (lanAddresses.length > 0) {
+            displayHost = lanAddresses[0]!.ip
           }
         }
 
@@ -1034,10 +1094,133 @@ app.whenReady().then(async () => {
           port: runningServerState.port,
           tls: runningServerState.tls,
           url: `${protocol}://${displayHost}:${runningServerState.port}`,
+          webUrl: `${httpProtocol}://${displayHost}:${runningServerState.port}`,
+          lanAddresses,
+          webuiAvailable: !!embeddedWebuiHandler,
           token: runningServerState.token,
           needsRestart,
           insecureWarning: isInsecureBind,
         }
+      })
+
+      // Cloudflare Workers Outbound Relay (Alma-style remote access)
+      const {
+        RelayTunnelClient,
+        verifyCloudflareToken,
+        deployCloudflareRelay,
+        deleteCloudflareRelay,
+        generateE2eKeyBase64Url,
+      } = await import('@craft-agent/server-core/relay')
+      const { validateSession: validateRelaySession } = await import('@craft-agent/server-core/webui')
+
+      relayTunnelClient = new RelayTunnelClient({
+        getLocalWsTarget: () => ({
+          url: `${runningServerState.tls ? 'wss' : 'ws'}://127.0.0.1:${runningServerState.port}`,
+          tls: runningServerState.tls,
+        }),
+        handleWebuiRequest: embeddedWebuiHandler ? embeddedWebuiHandler.fetch : null,
+        validateSessionCookie: async (cookieHeader) => (await validateRelaySession(cookieHeader, runningServerState.token)) !== null,
+        getServerToken: () => runningServerState.token,
+        logger: mainLog,
+      })
+
+      if (embeddedServerConfig.relay?.enabled) {
+        void relayTunnelClient.configure(embeddedServerConfig.relay).catch((err) => {
+          mainLog.error('[relay] Failed to initialize outbound relay on startup:', err)
+        })
+      }
+
+      powerMonitor.on('resume', () => {
+        relayTunnelClient?.triggerReconnectNow()
+      })
+
+      instance.wsServer.handle(RPC_CHANNELS.settings.GET_RELAY_STATUS, async () => {
+        return relayTunnelClient!.getStatus()
+      })
+
+      instance.wsServer.handle(RPC_CHANNELS.settings.SET_RELAY_CONFIG, async (_ctx: unknown, rawConfig: unknown) => {
+        const { setRelayConfig } = await import('@craft-agent/shared/config')
+        const cfg = rawConfig as import('@craft-agent/shared/config/server-config').RelayConfig
+        const normalized: import('@craft-agent/shared/config/server-config').RelayConfig = {
+          ...cfg,
+          relayUrl: (cfg.relayUrl || '').trim().replace(/\/+$/, ''),
+          relaySecret: (cfg.relaySecret || '').trim(),
+          gateKey: (cfg.gateKey || '').trim(),
+          e2eEnabled: cfg.e2eEnabled !== false,
+          e2eKey: cfg.e2eKey || (cfg.e2eEnabled !== false ? generateE2eKeyBase64Url() : undefined),
+          maxClients: Math.min(Math.max(Math.floor(cfg.maxClients ?? 4), 1), 16),
+          dailyRequestCap: Math.min(Math.max(Math.floor(cfg.dailyRequestCap ?? 80_000), 1_000), 95_000),
+        }
+        setRelayConfig(normalized, runningServerState.token)
+        await relayTunnelClient!.configure(normalized)
+        return relayTunnelClient!.getStatus()
+      })
+
+      instance.wsServer.handle(RPC_CHANNELS.settings.ROTATE_RELAY_KEYS, async () => {
+        const { getRelayConfig, setRelayConfig } = await import('@craft-agent/shared/config')
+        const current = getRelayConfig()
+        const updated: import('@craft-agent/shared/config/server-config').RelayConfig = {
+          ...current,
+          e2eKey: generateE2eKeyBase64Url(),
+        }
+        setRelayConfig(updated, runningServerState.token)
+        await relayTunnelClient!.configure(updated)
+        return relayTunnelClient!.getStatus()
+      })
+
+      instance.wsServer.handle(RPC_CHANNELS.settings.CF_VERIFY_TOKEN, async (_ctx: unknown, rawInput: unknown) => {
+        const input = rawInput as { apiToken: string; manualAccountId?: string; scriptName?: string }
+        return verifyCloudflareToken(input.apiToken, {
+          manualAccountId: input.manualAccountId,
+          scriptName: input.scriptName,
+        })
+      })
+
+      instance.wsServer.handle(RPC_CHANNELS.settings.CF_DEPLOY_RELAY, async (_ctx: unknown, rawInput: unknown) => {
+        const { setRelayConfig } = await import('@craft-agent/shared/config')
+        const input = rawInput as import('@craft-agent/shared/config/server-config').CloudflareDeployInput
+        const deploy = await deployCloudflareRelay(input)
+        const nextRelayConfig: import('@craft-agent/shared/config/server-config').RelayConfig = {
+          enabled: true,
+          relayUrl: deploy.relayUrl,
+          relaySecret: deploy.relaySecret,
+          gateKey: deploy.gateKey,
+          e2eEnabled: true,
+          e2eKey: deploy.e2eKey,
+          maxClients: Math.min(Math.max(Math.floor(input.maxClients ?? 4), 1), 16),
+          dailyRequestCap: Math.min(Math.max(Math.floor(input.dailyRequestCap ?? 80_000), 1_000), 95_000),
+          cloudflare: {
+            accountId: deploy.accountId,
+            accountName: deploy.accountName,
+            scriptName: deploy.scriptName,
+            subdomain: deploy.subdomain,
+            deployedAt: deploy.deployedAt,
+          },
+        }
+        setRelayConfig(nextRelayConfig, runningServerState.token)
+        await relayTunnelClient!.configure(nextRelayConfig)
+        return {
+          deploy,
+          status: relayTunnelClient!.getStatus(),
+        }
+      })
+
+      instance.wsServer.handle(RPC_CHANNELS.settings.CF_DELETE_RELAY, async (_ctx: unknown, rawInput: unknown) => {
+        const { getRelayConfig, setRelayConfig } = await import('@craft-agent/shared/config')
+        const input = rawInput as import('@craft-agent/shared/config/server-config').CloudflareDeleteInput
+        await deleteCloudflareRelay(input)
+        const current = getRelayConfig()
+        const cleared: import('@craft-agent/shared/config/server-config').RelayConfig = {
+          ...current,
+          enabled: false,
+          relayUrl: '',
+          relaySecret: '',
+          gateKey: '',
+          cloudflare: undefined,
+        }
+        setRelayConfig(cleared, runningServerState.token)
+        await relayTunnelClient!.configure(cleared)
+        return relayTunnelClient!.getStatus()
       })
 
       // TLS enforcement — warn when server mode binds to a network address without TLS
@@ -1257,6 +1440,12 @@ async function performQuitCleanup(): Promise<void> {
   // Clean up OAuth flow store (stop periodic cleanup timer)
   if (oauthFlowStore) {
     oauthFlowStore.dispose()
+  }
+
+  // Disconnect outbound Cloudflare Workers relay tunnel cleanly
+  if (relayTunnelClient) {
+    relayTunnelClient.stop()
+    relayTunnelClient = null
   }
 
   // Stop all model refresh timers

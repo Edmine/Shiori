@@ -62,9 +62,11 @@ import { useAnnotationCancelRestore } from '../annotations/use-annotation-cancel
 import { DocumentFormattedMarkdownOverlay } from '../overlay'
 import { AcceptPlanDropdown } from './AcceptPlanDropdown'
 import { CompactAcceptPlanDrawer } from './CompactAcceptPlanDrawer'
+import { CommentaryBlock } from './turn/CommentaryBlock'
 import { ResponseFooter } from './turn/ResponseFooter'
 import { ThinkingRow } from './turn/ThinkingRow'
 import { WorkLog } from './turn/WorkLog'
+import { buildTurnTimelineSegments } from './turn/timeline-segments'
 import { ANSWER_BLOCK_IN, ANSWER_PROSE, SIZE_CONFIG } from './turn/turn-classes'
 import { countFailedActivities, getWorkLogPreview } from './turn/work-log-summary'
 
@@ -1634,6 +1636,16 @@ export const TurnCard = React.memo(function TurnCard({
   const [localExpandedActivityGroups, setLocalExpandedActivityGroups] = useState<Set<string>>(new Set())
   const expandedActivityGroups = externalExpandedActivityGroups ?? localExpandedActivityGroups
   const handleExpandedActivityGroupsChange = onExpandedActivityGroupsChange ?? setLocalExpandedActivityGroups
+  const [localExpandedSegments, setLocalExpandedSegments] = useState<Set<string>>(new Set())
+
+  const toggleSegmentExpanded = useCallback((segmentId: string) => {
+    setLocalExpandedSegments((prev) => {
+      const next = new Set(prev)
+      if (next.has(segmentId)) next.delete(segmentId)
+      else next.add(segmentId)
+      return next
+    })
+  }, [])
 
   // Check if response is in buffering state
   // No polling needed - parent updates trigger re-evaluation naturally
@@ -1641,14 +1653,6 @@ export const TurnCard = React.memo(function TurnCard({
     () => isResponseBuffering(response),
     [response]
   )
-
-
-  // Summary of the collapsed work log (text swaps in place — no per-update animation)
-  const workLogPreview = useMemo(
-    () => getWorkLogPreview(activities, intent, isStreaming, !!response, isComplete),
-    [activities, intent, isStreaming, response, isComplete]
-  )
-  const failedCount = useMemo(() => countFailedActivities(activities), [activities])
 
   // Sort activities by timestamp for correct chronological order
   // This handles the live streaming case (turn-utils sorts on flush for completed turns)
@@ -1668,26 +1672,23 @@ export const TurnCard = React.memo(function TurnCard({
     [allSortedActivities]
   )
 
-  // Group when the turn has subagent work: a Task/Agent call, or rows of a subagent launched in an
-  // earlier turn (they would otherwise interleave with this turn's rows)
-  const hasTaskSubagents = useMemo(
-    () => sortedActivities.some(a => isParentTaskTool(a.toolName ?? '') || a.parentId),
-    [sortedActivities]
+  // Interleave top-level AI commentary updates directly on the timeline between collapsible tool groups
+  const timelineSegments = useMemo(
+    () => buildTurnTimelineSegments(sortedActivities, response),
+    [sortedActivities, response]
   )
 
-  // Group activities by parent Task for better visualization
-  // Only group if there are Task subagents, otherwise keep flat for simpler view
-  const groupedActivities = useMemo(
-    () => hasTaskSubagents ? groupActivitiesByParent(sortedActivities) : null,
-    [sortedActivities, hasTaskSubagents]
-  )
-
-  // Pre-compute which activities are last children - O(n) instead of O(n²) per-render check
-  // Only used for flat view (non-grouped)
-  const lastChildSet = useMemo(
-    () => !hasTaskSubagents ? computeLastChildSet(sortedActivities) : new Set<string>(),
-    [sortedActivities, hasTaskSubagents]
-  )
+  const workSegmentMeta = useMemo(() => {
+    let count = 0
+    let lastIndex = -1
+    for (let index = 0; index < timelineSegments.length; index++) {
+      if (timelineSegments[index]!.kind === 'work') {
+        count++
+        lastIndex = index
+      }
+    }
+    return { count, lastIndex }
+  }, [timelineSegments])
 
   // Don't render if nothing to show and turn is complete
   if (activities.length === 0 && !response && isComplete) {
@@ -1717,8 +1718,16 @@ export const TurnCard = React.memo(function TurnCard({
     return null
   }
 
-  // Only count non-plan activities for the collapsible section
-  const hasActivities = sortedActivities.length > 0
+  const hasTimelineContent = timelineSegments.length > 0
+  const lastSegmentIsWork =
+    timelineSegments.length > 0 && timelineSegments[timelineSegments.length - 1]!.kind === 'work'
+  const actionsMenuNode = renderActionsMenu ? renderActionsMenu() : (
+    <TurnCardActionsMenu
+      onOpenDetails={onOpenDetails}
+      onOpenMultiFileDiff={onOpenMultiFileDiff}
+      hasEditOrWriteActivities={hasEditOrWriteActivities}
+    />
+  )
 
   // Determine if thinking indicator should show using the phase-based state machine.
   // This properly handles the "gap" state (awaiting) between tool completion and next action,
@@ -1759,38 +1768,72 @@ export const TurnCard = React.memo(function TurnCard({
   // A turn is a quiet work log + the answer, 10px apart (spec §7.4, mockup `.turn`)
   return (
     <div className="flex min-w-0 flex-col gap-2.5">
-      {/* Activity Section - excluded from search highlighting (matches ripgrep behavior) */}
-      {hasActivities && (
-        <WorkLog
-          activityCount={activities.length}
-          preview={workLogPreview}
-          failedCount={failedCount}
-          isExpanded={isExpanded}
-          onToggle={toggleExpanded}
-          actionsMenu={renderActionsMenu ? renderActionsMenu() : (
-            <TurnCardActionsMenu
-              onOpenDetails={onOpenDetails}
-              onOpenMultiFileDiff={onOpenMultiFileDiff}
-              hasEditOrWriteActivities={hasEditOrWriteActivities}
+      {/* Interleaved Timeline: live AI commentary updates + compact collapsible tool groups */}
+      {hasTimelineContent && timelineSegments.map((segment, index) => {
+        if (segment.kind === 'commentary') {
+          return (
+            <CommentaryBlock
+              key={segment.id}
+              activity={segment.activity}
+              onOpenUrl={onOpenUrl}
+              onOpenFile={onOpenFile}
+              animateInsert={hasMounted.current}
             />
-          )}
-          activities={sortedActivities}
-          groupedActivities={groupedActivities}
-          lastChildSet={lastChildSet}
-          expandedActivityGroups={expandedActivityGroups}
-          onExpandedActivityGroupsChange={handleExpandedActivityGroupsChange}
-          onOpenActivityDetails={onOpenActivityDetails}
-          sessionFolderPath={sessionFolderPath}
-          displayMode={displayMode}
-          thinkingLabel={thinkingLabel}
-          todos={todos}
-          animateInserts={hasMounted.current}
-          listRef={activitiesContainerRef}
-        />
-      )}
+          )
+        }
 
-      {/* Standalone thinking indicator - when no activities but still working */}
-      {!hasActivities && thinkingLabel && <ThinkingRow label={thinkingLabel} />}
+        const segActivities = segment.activities
+        const isSingleWorkSegment = workSegmentMeta.count === 1
+        const isLastWorkSegment = index === workSegmentMeta.lastIndex
+        const isFinalTimelineSegment = index === timelineSegments.length - 1
+        const segHasRunning = segActivities.some(a => a.status === 'running' || a.status === 'pending')
+        const segIsComplete = isComplete || (!isFinalTimelineSegment && !segHasRunning)
+        const segHasTaskSubagents = segActivities.some(a => isParentTaskTool(a.toolName ?? '') || a.parentId)
+        const segGrouped = segHasTaskSubagents ? groupActivitiesByParent(segActivities) : null
+        const segLastChildSet = !segHasTaskSubagents ? computeLastChildSet(segActivities) : new Set<string>()
+        const segPreview = getWorkLogPreview(
+          segActivities,
+          isSingleWorkSegment ? intent : undefined,
+          !segIsComplete && isStreaming,
+          isFinalTimelineSegment && !!response,
+          segIsComplete,
+        )
+        const segFailedCount = countFailedActivities(segActivities)
+        const segExpanded = isSingleWorkSegment
+          ? isExpanded
+          : (externalIsExpanded === true || localExpandedSegments.has(segment.id))
+        const segToggle = isSingleWorkSegment
+          ? toggleExpanded
+          : () => toggleSegmentExpanded(segment.id)
+
+        return (
+          <WorkLog
+            key={segment.id}
+            activityCount={segActivities.length}
+            preview={segPreview}
+            failedCount={segFailedCount}
+            isExpanded={segExpanded}
+            onToggle={segToggle}
+            actionsMenu={isLastWorkSegment ? actionsMenuNode : undefined}
+            activities={segActivities}
+            groupedActivities={segGrouped}
+            lastChildSet={segLastChildSet}
+            expandedActivityGroups={expandedActivityGroups}
+            onExpandedActivityGroupsChange={handleExpandedActivityGroupsChange}
+            onOpenActivityDetails={onOpenActivityDetails}
+            sessionFolderPath={sessionFolderPath}
+            displayMode={displayMode}
+            thinkingLabel={isFinalTimelineSegment ? thinkingLabel : undefined}
+            todos={isLastWorkSegment ? todos : undefined}
+            animateInserts={hasMounted.current}
+            listRef={isSingleWorkSegment ? activitiesContainerRef : undefined}
+            isLive={!segIsComplete}
+          />
+        )
+      })}
+
+      {/* Standalone thinking indicator - when no work log owns the tail (empty turn or right after commentary) */}
+      {!lastSegmentIsWork && thinkingLabel && <ThinkingRow label={thinkingLabel} />}
 
       {/* Plan Activities - rendered as full ResponseCards, time-sorted with other activities */}
       {planActivities.map((planActivity, index) => (

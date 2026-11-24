@@ -19,7 +19,9 @@
     "./handlers/rpc/*": "./src/handlers/rpc/*.ts",
     "./sessions": "./src/sessions/index.ts",
     "./tasks": "./src/tasks/index.ts",
-    "./webui": "./src/webui/index.ts"
+    "./webui": "./src/webui/index.ts",
+    "./relay": "./src/relay/index.ts",
+    "./relay/e2e-crypto": "./src/relay/e2e-crypto.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

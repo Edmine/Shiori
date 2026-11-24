@@ -48,6 +48,8 @@ export interface FullscreenOverlayBaseHeaderProps {
   headerActions?: ReactNode
   /** When provided, renders a built-in copy button (matching close button style) */
   copyContent?: string
+  /** Right-side inset (px) reserved for native Windows caption buttons */
+  windowCaptionInsetRight?: number
 }
 
 /**
@@ -199,6 +201,7 @@ export function FullscreenOverlayBaseHeader({
   subtitle,
   headerActions,
   copyContent,
+  windowCaptionInsetRight,
 }: FullscreenOverlayBaseHeaderProps) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
@@ -235,7 +238,12 @@ export function FullscreenOverlayBaseHeader({
   )
 
   return (
-    <PreviewHeader onClose={onClose} height={48} rightActions={rightActions}>
+    <PreviewHeader
+      onClose={onClose}
+      height={48}
+      rightActions={rightActions}
+      windowCaptionInsetRight={windowCaptionInsetRight}
+    >
       {typeBadge && (
         <PreviewHeaderBadge
           icon={typeBadge.icon}

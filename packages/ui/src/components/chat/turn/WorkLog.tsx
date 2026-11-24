@@ -102,7 +102,13 @@ export interface WorkLogProps extends WorkLogHeaderProps {
   /** Rows created after the card mounted animate in (false on the card's first render) */
   animateInserts: boolean
   /** Scroll container of the rows (TurnCard scrolls it to the end when the user expands) */
-  listRef: React.Ref<HTMLDivElement>
+  listRef?: React.Ref<HTMLDivElement>
+  /**
+   * True while this work log belongs to an actively executing turn.
+   * When collapsed, surfaces a compact live strip of currently running tool(s) / thinking
+   * so the user can see active work in real time without expanding the full log.
+   */
+  isLive?: boolean
 }
 
 function WorkLogRows({
@@ -175,8 +181,16 @@ function WorkLogRows({
  * first rows fade in with a 25ms stagger; closing fades the rows out quickly.
  * Excluded from transcript search (matches ripgrep behavior).
  */
-export function WorkLog({ todos, ...props }: WorkLogProps) {
+export function WorkLog({ todos, isLive = false, ...props }: WorkLogProps) {
   const { activityCount, preview, failedCount, isExpanded, onToggle, actionsMenu, ...rowProps } = props
+  const liveRunningActivities = React.useMemo(() => {
+    if (!isLive || isExpanded) return []
+    return rowProps.activities
+      .filter(a => a.status === 'running' || a.status === 'pending')
+      .slice(-2)
+  }, [isLive, isExpanded, rowProps.activities])
+  const showLiveStrip = isLive && !isExpanded && (liveRunningActivities.length > 0 || !!rowProps.thinkingLabel)
+
   return (
     <div className="group min-w-0 select-none" data-search-exclude="true">
       <WorkLogHeader
@@ -187,6 +201,22 @@ export function WorkLog({ todos, ...props }: WorkLogProps) {
         onToggle={onToggle}
         actionsMenu={actionsMenu}
       />
+      {showLiveStrip && (
+        <div className={cn(WORK_LOG_BODY, 'my-0.5')}>
+          {liveRunningActivities.map((activity) => (
+            <ActivityRow
+              key={activity.id}
+              activity={activity}
+              onOpenDetails={rowProps.onOpenActivityDetails ? () => rowProps.onOpenActivityDetails!(activity) : undefined}
+              sessionFolderPath={rowProps.sessionFolderPath}
+              displayMode={rowProps.displayMode}
+            />
+          ))}
+          {liveRunningActivities.length === 0 && rowProps.thinkingLabel && (
+            <ThinkingRow label={rowProps.thinkingLabel} />
+          )}
+        </div>
+      )}
       <AnimatePresence initial={false}>
         {isExpanded && (
           <motion.div key="work-log-body" exit={{ opacity: 0, transition: TWEEN.exit }}>

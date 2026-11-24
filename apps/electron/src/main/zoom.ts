@@ -1,5 +1,11 @@
 import { BrowserWindow, ipcMain, type WebContents } from 'electron'
-import { getPersistedDefaultZoomLevel, setPersistedDefaultZoomLevel } from '@craft-agent/shared/config'
+import {
+  getPersistedDefaultZoomLevel,
+  setPersistedDefaultZoomLevel,
+  getPersistedCreativeLens,
+  setPersistedCreativeLens,
+} from '@craft-agent/shared/config'
+import { isCreativeLensId, type CreativeLensId } from '@craft-agent/shared/prompts/creative-lenses'
 import { normalizeZoomLevel } from '../shared/zoom'
 
 /**
@@ -30,6 +36,12 @@ export function registerDefaultZoomIpc(appWindows: () => BrowserWindow[]): void 
     const normalized = normalizeZoomLevel(level)
     setPersistedDefaultZoomLevel(normalized)
     for (const window of appWindows()) applyDefaultZoom(window.webContents)
+    return normalized
+  })
+  ipcMain.handle('creativeLens:get', (): CreativeLensId => getPersistedCreativeLens())
+  ipcMain.handle('creativeLens:set', (_event, lens: unknown): CreativeLensId => {
+    const normalized: CreativeLensId = isCreativeLensId(lens) ? lens : 'natural'
+    setPersistedCreativeLens(normalized)
     return normalized
   })
 }

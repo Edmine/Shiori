@@ -57,3 +57,17 @@ export interface LoadedSkill {
   /** Where this skill was loaded from */
   source: SkillSource;
 }
+
+/**
+ * Input payload for creating a new workspace skill
+ */
+export interface CreateSkillInput {
+  /** Display name for the skill */
+  name: string;
+  /** Short description of when and how to use the skill */
+  description: string;
+  /** Markdown instructions body */
+  content: string;
+  /** Optional explicit slug (lowercase alphanumeric + hyphens) */
+  slug?: string;
+}

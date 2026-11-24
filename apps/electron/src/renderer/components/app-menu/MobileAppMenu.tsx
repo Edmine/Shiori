@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import * as Icons from 'lucide-react'
 import { motion, AnimatePresence } from 'motion/react'
 import { useRegisterDismissibleLayer } from '@/context/DismissibleLayerContext'
+import { isWebUI } from '@/lib/platform'
 import { CraftAgentsSymbol } from '../icons/CraftAgentsSymbol'
 import { SquarePenRounded } from '../icons/SquarePenRounded'
 import { SETTINGS_ICONS } from '../icons/SettingsIcons'
@@ -106,7 +107,7 @@ export function MobileAppMenu(props: AppMenuProps) {
   }, [])
 
   const pages = useMemo(
-    () => buildMobileMenuPages({ hasNewWindow: !!props.onNewWindow, isDebugMode }),
+    () => buildMobileMenuPages({ hasNewWindow: !isWebUI && !!props.onNewWindow, isDebugMode }),
     [props.onNewWindow, isDebugMode],
   )
 
@@ -205,7 +206,7 @@ interface SheetProps {
 }
 
 function MobileMenuSheet({ state, pages, onPop, onClose, onActivateRow, t }: SheetProps) {
-  const portalTarget = useMobileMenuPortalTarget(state.isOpen)
+  const { target: portalTarget, isFrame } = useMobileMenuPortalTarget(state.isOpen)
   if (!portalTarget) return null
 
   // True while the sheet is open OR animating out — AnimatePresence handles the rest.
@@ -214,7 +215,7 @@ function MobileMenuSheet({ state, pages, onPop, onClose, onActivateRow, t }: She
       {state.isOpen && (
         <motion.div
           key="mobile-app-menu-sheet"
-          className="absolute inset-0 z-modal"
+          className={isFrame ? 'absolute inset-0 z-modal' : 'fixed inset-0 z-modal'}
           initial="closed"
           animate="open"
           exit="closed"
@@ -264,56 +265,66 @@ interface PageStackProps {
  */
 function PageStack({ pages, stack, onPop, onClose, onActivateRow, t }: PageStackProps) {
   return (
-    <div className="absolute inset-0">
-      {stack.map((pageId, depth) => {
-        const page = pages.find((p) => p.id === pageId)
-        if (!page) return null
-        return (
-          <motion.div
-            key={pageId}
-            className="absolute inset-0"
-            initial={depth === 0 ? false : { x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={SNAPPY_SPRING}
-          >
-            <MobileMenuPage
-              title={t(page.titleKey)}
-              showBack={depth > 0}
-              onBack={onPop}
-              onClose={onClose}
+    <div className="absolute inset-0 overflow-hidden">
+      <AnimatePresence initial={false}>
+        {stack.map((pageId, depth) => {
+          const page = pages.find((p) => p.id === pageId)
+          if (!page) return null
+          return (
+            <motion.div
+              key={pageId}
+              className="absolute inset-0"
+              initial={depth === 0 ? false : { x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={SNAPPY_SPRING}
             >
-              <ul className="py-2">
-                {page.rows.map((row) => (
-                  <li key={row.id}>
-                    <MobileMenuItem
-                      icon={renderRowIcon(row.iconName, row.id)}
-                      label={t(row.labelKey)}
-                      affordance={affordanceFor(row.action)}
-                      onClick={() => onActivateRow(row)}
-                    />
-                  </li>
-                ))}
-              </ul>
-            </MobileMenuPage>
-          </motion.div>
-        )
-      })}
+              <MobileMenuPage
+                title={t(page.titleKey)}
+                showBack={depth > 0}
+                onBack={onPop}
+                onClose={onClose}
+              >
+                <ul className="py-2">
+                  {page.rows.map((row) => (
+                    <li key={row.id}>
+                      <MobileMenuItem
+                        icon={renderRowIcon(row.iconName, row.id)}
+                        label={t(row.labelKey)}
+                        affordance={affordanceFor(row.action)}
+                        onClick={() => onActivateRow(row)}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </MobileMenuPage>
+            </motion.div>
+          )
+        })}
+      </AnimatePresence>
     </div>
   )
 }
 
 /**
- * Resolves the portal target for the sheet. Returns `null` until the document is
- * available (SSR-safety / initial mount) and re-resolves whenever the sheet opens
- * so demos that mount after the first render still work.
+ * Resolves the portal target for the sheet. Uses `document.body` (fixed inset-0)
+ * in production so the sheet sits cleanly over the full viewport instead of inside
+ * a scrolled/offset panel container; playground demos can opt into a bounded frame
+ * via `[data-mobile-menu-portal="frame"]`.
  */
-function useMobileMenuPortalTarget(isOpen: boolean): HTMLElement | null {
-  const [target, setTarget] = useState<HTMLElement | null>(null)
+function useMobileMenuPortalTarget(isOpen: boolean): { target: HTMLElement | null; isFrame: boolean } {
+  const [resolved, setResolved] = useState<{ target: HTMLElement | null; isFrame: boolean }>({
+    target: null,
+    isFrame: false,
+  })
   useEffect(() => {
     if (!isOpen) return
-    const found = document.querySelector('[data-mobile-menu-root]')
-    setTarget((found as HTMLElement | null) ?? document.body)
+    const frame = document.querySelector('[data-mobile-menu-portal="frame"]') as HTMLElement | null
+    if (frame) {
+      setResolved({ target: frame, isFrame: true })
+    } else {
+      setResolved({ target: document.body, isFrame: false })
+    }
   }, [isOpen])
-  return target
+  return resolved
 }

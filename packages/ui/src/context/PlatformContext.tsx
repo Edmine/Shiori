@@ -115,6 +115,13 @@ export interface PlatformActions {
    * No-op on non-macOS platforms or in web viewer.
    */
   onSetTrafficLightsVisible?: (visible: boolean) => void
+
+  /**
+   * Right-side width (in px) reserved by native top-right window caption buttons
+   * (Windows frameless titleBarOverlay `- □ ×`). Fullscreen overlays use this to
+   * keep their close/action controls clear of native window controls.
+   */
+  windowCaptionInsetRight?: number
 }
 
 const PlatformContext = createContext<PlatformActions>({})

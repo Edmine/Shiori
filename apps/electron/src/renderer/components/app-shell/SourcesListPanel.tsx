@@ -43,6 +43,7 @@ export interface SourcesListPanelProps {
   workspaceRootPath?: string
   onDeleteSource: (sourceSlug: string) => void
   onSourceClick: (source: LoadedSource) => void
+  onAddSource?: () => void
   selectedSourceSlug?: string | null
   localMcpEnabled?: boolean
   className?: string
@@ -54,6 +55,7 @@ export function SourcesListPanel({
   workspaceRootPath,
   onDeleteSource,
   onSourceClick,
+  onAddSource,
   selectedSourceSlug,
   localMcpEnabled = true,
   className,
@@ -98,7 +100,11 @@ export function SourcesListPanel({
           description={t('sourcesList.emptyDescription')}
           docKey="sources"
         >
-          {workspaceRootPath && (
+          {onAddSource ? (
+            <Button variant="secondary" onClick={onAddSource}>
+              {t('sourcesList.addSource')}
+            </Button>
+          ) : workspaceRootPath ? (
             <EditPopover
               align="center"
               trigger={
@@ -111,7 +117,7 @@ export function SourcesListPanel({
                 workspaceRootPath
               )}
             />
-          )}
+          ) : null}
         </EntityListEmptyScreen>
       }
       mapItem={(source) => {

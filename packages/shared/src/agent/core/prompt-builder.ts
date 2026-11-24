@@ -13,9 +13,10 @@
  */
 
 import { isLocalMcpEnabled } from '../../workspaces/storage.ts';
-import { formatPreferencesForPrompt } from '../../config/preferences.ts';
+import { formatPreferencesForPrompt, getPersistedCreativeLens } from '../../config/preferences.ts';
 import { formatSessionState } from '../mode-manager.ts';
 import { getDateTimeContext, getWorkingDirectoryContext } from '../../prompts/system.ts';
+import { formatCreativeLensPrompt } from '../../prompts/creative-lenses.ts';
 import {
   formatStableGitDeveloperContext,
   formatVolatileGitDeveloperContext,
@@ -139,6 +140,15 @@ export class PromptBuilder {
     const volatileDeveloperContext = this.getVolatileDeveloperContext();
     if (volatileDeveloperContext) {
       parts.push(volatileDeveloperContext);
+    }
+
+    // Active creative lens (non-coding sessions only) — read per turn so switching
+    // lenses in the composer takes effect immediately without busting prompt cache.
+    if (this.config.agentProfile !== 'coding') {
+      const lensBlock = formatCreativeLensPrompt(getPersistedCreativeLens());
+      if (lensBlock) {
+        parts.push(lensBlock.trim());
+      }
     }
 
     return parts;

@@ -25,6 +25,8 @@ import { cn } from '@/lib/utils'
 import { X, ChevronLeft } from 'lucide-react'
 import { parseRouteToNavigationState } from '../../../shared/route-parser'
 import { closePanelAtom, focusedPanelIdAtom, type PanelStackEntry } from '@/atoms/panel-stack'
+import { getCompactParentRoute } from '@/lib/nav-helpers'
+import { navigate, routes } from '@/lib/navigate'
 import { useAppShellContext, AppShellProvider } from '@/context/AppShellContext'
 import { PanelHeaderCenterButton } from '@/components/ui/PanelHeaderCenterButton'
 import { MainContentPanel } from './MainContentPanel'
@@ -91,10 +93,19 @@ export function PanelSlot({
     closePanel(entry.id)
   }, [closePanel, entry.id])
 
+  const handleCompactBack = useCallback(() => {
+    const parentRoute = getCompactParentRoute(navState)
+    if (parentRoute) {
+      navigate(parentRoute, { skipAutoSelect: true })
+      return
+    }
+    navigate(routes.view.allSessions(), { skipAutoSelect: true })
+  }, [navState])
+
   // Build close button for PanelHeader (via context override)
-  // Single-panel desktop sessions are full-bleed; only multi-panel splits need a panel close control.
+  // Single-panel desktop sessions and compact mobile views do not show a redundant close X.
   const closeButton = useMemo(() => {
-    if (isOnly && !isCompact) return undefined
+    if (isOnly || isCompact) return undefined
     return (
       <PanelHeaderCenterButton
         icon={<X className="h-4 w-4" />}
@@ -104,20 +115,22 @@ export function PanelSlot({
     )
   }, [handleClose, isOnly, isCompact, t])
 
-  // Build back button for compact mode — closes the panel to reveal the session list.
+  // Build back button for compact mode — navigates one level up within the current navigator
+  // (e.g. settings/appearance → settings, session detail → sessions list) while keeping the
+  // panel mounted so the slide-out transition plays smoothly.
   // Same PanelHeaderCenterButton style as X and share, just on the left side.
   const backButton = useMemo(() => {
     if (!isCompact) return undefined
     return (
       <PanelHeaderCenterButton
         icon={<ChevronLeft className="h-4 w-4" />}
-        onClick={handleClose}
+        onClick={handleCompactBack}
         tooltip={t("common.backToList")}
         // Compact: the chevron's ink (not its box) sits on the 16px gutter (index.css .panel-header-back)
         className="panel-header-back"
       />
     )
-  }, [isCompact, handleClose, t])
+  }, [isCompact, handleCompactBack, t])
 
   // Override AppShellContext so ChatPage/PanelHeader gets our per-panel close button,
   // back button (compact mode), isFocusedPanel for input field appearance, and the panel's id
@@ -136,14 +149,8 @@ export function PanelSlot({
     }
   }, [isFocusedPanel, setFocusedPanel, entry.id])
 
-  // Corner radii: edge corners (touching window boundary) vs interior corners; the corners that
-  // meet the list are square. Compact mode panels run flush to the viewport floor — no rounded bottom.
-  const radii: React.CSSProperties = isCompact ? {
-    borderTopLeftRadius: isJoinedToNavigator ? 0 : RADIUS_INNER,
-    borderBottomLeftRadius: 0,
-    borderTopRightRadius: RADIUS_INNER,
-    borderBottomRightRadius: 0,
-  } : {
+  // Full-bleed crisp edges on both desktop and compact mobile panels (no floating card lip).
+  const radii: React.CSSProperties = {
     borderRadius: 0,
   }
   // In a split view the focused panel is lifted; the others stay flat.

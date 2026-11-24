@@ -278,10 +278,10 @@ export const BUILT_IN_CONNECTION_TEMPLATES: Record<string, {
     authType: 'oauth',
   },
   'chatgpt-plus': {
-    name: 'ChatGPT Plus',
+    name: 'ChatGPT (OpenAI)',
     providerType: 'pi',
     authType: 'oauth',
-    piAuthProvider: 'openai-codex',
+    piAuthProvider: 'openai',
   },
   'github-copilot': {
     name: 'GitHub Copilot',

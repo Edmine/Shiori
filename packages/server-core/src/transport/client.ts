@@ -102,6 +102,11 @@ export interface WsRpcClientOptions {
   mode?: TransportMode
   /** Accept self-signed TLS certificates for wss:// connections. Default: false. Only works in Node.js (main process). */
   tlsRejectUnauthorized?: boolean
+  /** Optional frame codec (e.g. AES-256-GCM E2EE over Cloudflare Workers relay). */
+  frameCodec?: {
+    encode: (raw: string) => Promise<string> | string
+    decode: (raw: string) => Promise<string> | string
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -149,6 +154,9 @@ export class WsRpcClient implements RpcClient {
   private readonly connectTimeout: number
   private readonly mode: TransportMode
   private readonly tlsRejectUnauthorized: boolean
+  private readonly frameCodec: WsRpcClientOptions['frameCodec']
+  private outgoingCodecChain: Promise<void> = Promise.resolve()
+  private incomingCodecChain: Promise<void> = Promise.resolve()
 
   constructor(url: string, opts?: WsRpcClientOptions) {
     this.url = url
@@ -162,6 +170,7 @@ export class WsRpcClient implements RpcClient {
     this.connectTimeout = opts?.connectTimeout ?? 10_000
     this.mode = opts?.mode ?? this.inferMode(url)
     this.tlsRejectUnauthorized = opts?.tlsRejectUnauthorized ?? true
+    this.frameCodec = opts?.frameCodec
 
     this.connectionState = {
       mode: this.mode,
@@ -419,7 +428,24 @@ export class WsRpcClient implements RpcClient {
 
     ws.onmessage = (event) => {
       if (this.ws !== ws) return // stale socket — ignore
-      this.onMessage(typeof event.data === 'string' ? event.data : event.data.toString())
+      const raw = typeof event.data === 'string' ? event.data : event.data.toString()
+      if (!this.frameCodec) {
+        this.onMessage(raw)
+        return
+      }
+      const codec = this.frameCodec
+      this.incomingCodecChain = this.incomingCodecChain
+        .then(async () => {
+          if (this.ws !== ws) return
+          const decoded = await codec.decode(raw)
+          if (this.ws !== ws) return
+          this.onMessage(decoded)
+        })
+        .catch(() => {
+          if (this.ws === ws) {
+            try { ws.close(4403, 'Frame decode failed') } catch {}
+          }
+        })
     }
 
     ws.onclose = (event) => {
@@ -818,7 +844,20 @@ export class WsRpcClient implements RpcClient {
     if (!ws || ws.readyState !== ws.OPEN) return false
 
     try {
-      ws.send(serializeEnvelope(envelope))
+      const serialized = serializeEnvelope(envelope)
+      if (!this.frameCodec) {
+        ws.send(serialized)
+        return true
+      }
+      const codec = this.frameCodec
+      this.outgoingCodecChain = this.outgoingCodecChain
+        .then(async () => {
+          if (this.ws !== ws || ws.readyState !== ws.OPEN) return
+          const encoded = await codec.encode(serialized)
+          if (this.ws !== ws || ws.readyState !== ws.OPEN) return
+          ws.send(encoded)
+        })
+        .catch(() => {})
       return true
     } catch {
       return false

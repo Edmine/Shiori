@@ -208,6 +208,12 @@ export const LOCAL_ONLY_CHANNELS = new Set<string>([
   RPC_CHANNELS.settings.GET_SERVER_CONFIG,
   RPC_CHANNELS.settings.SET_SERVER_CONFIG,
   RPC_CHANNELS.settings.GET_SERVER_STATUS,
+  RPC_CHANNELS.settings.GET_RELAY_STATUS,
+  RPC_CHANNELS.settings.SET_RELAY_CONFIG,
+  RPC_CHANNELS.settings.ROTATE_RELAY_KEYS,
+  RPC_CHANNELS.settings.CF_VERIFY_TOKEN,
+  RPC_CHANNELS.settings.CF_DEPLOY_RELAY,
+  RPC_CHANNELS.settings.CF_DELETE_RELAY,
 ])
 
 // ---------------------------------------------------------------------------

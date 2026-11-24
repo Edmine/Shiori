@@ -571,4 +571,127 @@ describe('legacy Opus migration to default Opus (integration)', () => {
     expect(connection.defaultModel).toBe('pi/us.anthropic.claude-opus-4-6-v1')
     expect(modelIdsOf(connection)).toEqual(['pi/us.anthropic.claude-opus-4-6-v1', 'pi/us.anthropic.claude-sonnet-4-6'])
   })
+
+  it('preserves custom modelSelectionMode lists and per-model overrides on OAuth subscriptions', () => {
+    const { configDir, workspaceRoot, configPath } = setupWorkspaceConfigDir()
+
+    const customModels = [
+      {
+        id: 'pi/gpt-6.2-sol',
+        name: 'GPT-6.2 Sol (Custom)',
+        shortName: 'GPT-6.2 Sol',
+        description: 'Custom subscription model',
+        provider: 'pi',
+        contextWindow: 500000,
+        supportsThinking: true,
+        supportsImages: true,
+      },
+      {
+        id: 'pi/gpt-6-astra',
+        name: 'Astra Tuned',
+        shortName: 'Astra',
+        description: '',
+        provider: 'pi',
+        contextWindow: 400000,
+        supportsThinking: false,
+        supportsImages: false,
+      },
+    ]
+
+    writeRootConfig(configPath, workspaceRoot, [
+      {
+        slug: 'chatgpt-plus',
+        name: 'ChatGPT (OpenAI)',
+        providerType: 'pi',
+        authType: 'oauth',
+        piAuthProvider: 'openai',
+        modelSelectionMode: 'custom',
+        createdAt: Date.now(),
+        models: customModels,
+        defaultModel: 'pi/gpt-6.2-sol',
+      },
+    ])
+
+    runMigration(configDir)
+
+    const connection = findConnection(configPath, 'chatgpt-plus')
+    expect(connection.modelSelectionMode).toBe('custom')
+    expect(connection.defaultModel).toBe('pi/gpt-6.2-sol')
+    expect(connection.models).toEqual(customModels)
+  })
+
+  it('preserves live-discovered future OpenAI models in automaticallySyncedFromProvider across offline startups', () => {
+    const { configDir, workspaceRoot, configPath } = setupWorkspaceConfigDir()
+
+    const liveModels = [
+      {
+        id: 'pi/gpt-7-astra',
+        name: 'GPT-7 Astra',
+        shortName: 'GPT-7 Astra',
+        description: 'openai model (live synced)',
+        provider: 'pi',
+        contextWindow: 272000,
+        supportsThinking: true,
+        supportsImages: true,
+      },
+      {
+        id: 'pi/gpt-6.2-astra',
+        name: 'GPT-6.2 Astra',
+        shortName: 'GPT-6.2 Astra',
+        description: 'openai model via Shiori Backend',
+        provider: 'pi',
+        contextWindow: 272000,
+        supportsThinking: true,
+        supportsImages: true,
+      },
+    ]
+
+    writeRootConfig(configPath, workspaceRoot, [
+      {
+        slug: 'chatgpt-plus',
+        name: 'ChatGPT (OpenAI)',
+        providerType: 'pi',
+        authType: 'oauth',
+        piAuthProvider: 'openai',
+        modelSelectionMode: 'automaticallySyncedFromProvider',
+        createdAt: Date.now(),
+        models: liveModels,
+        defaultModel: 'pi/gpt-7-astra',
+      },
+    ])
+
+    runMigration(configDir)
+
+    const connection = findConnection(configPath, 'chatgpt-plus')
+    expect(connection.modelSelectionMode).toBe('automaticallySyncedFromProvider')
+    expect(connection.defaultModel).toBe('pi/gpt-7-astra')
+    expect(modelIdsOf(connection)).toEqual(['pi/gpt-7-astra', 'pi/gpt-6.2-astra'])
+  })
+
+  it('upgrades stale static OpenAI lists in automaticallySyncedFromProvider to include supplemental GPT-6.2 models', () => {
+    const { configDir, workspaceRoot, configPath } = setupWorkspaceConfigDir()
+
+    writeRootConfig(configPath, workspaceRoot, [
+      {
+        slug: 'chatgpt-plus',
+        name: 'ChatGPT (OpenAI)',
+        providerType: 'pi',
+        authType: 'oauth',
+        piAuthProvider: 'openai',
+        modelSelectionMode: 'automaticallySyncedFromProvider',
+        createdAt: Date.now(),
+        models: ['pi/gpt-6-astra', 'pi/gpt-6.1-sol'],
+        defaultModel: 'pi/gpt-6-astra',
+      },
+    ])
+
+    runMigration(configDir)
+
+    const connection = findConnection(configPath, 'chatgpt-plus')
+    const ids = modelIdsOf(connection)
+    expect(connection.modelSelectionMode).toBe('automaticallySyncedFromProvider')
+    expect(ids).toContain('pi/gpt-6.2-astra')
+    expect(ids).toContain('pi/gpt-6.2-sol')
+    expect(connection.defaultModel).toBe('pi/gpt-6-astra')
+  })
 })

@@ -18,6 +18,7 @@ export interface SkillsListPanelProps {
   skills: LoadedSkill[]
   onDeleteSkill: (skillSlug: string) => void
   onSkillClick: (skill: LoadedSkill) => void
+  onAddSkill?: () => void
   selectedSkillSlug?: string | null
   workspaceId?: string
   workspaceRootPath?: string
@@ -28,6 +29,7 @@ export function SkillsListPanel({
   skills,
   onDeleteSkill,
   onSkillClick,
+  onAddSkill,
   selectedSkillSlug,
   workspaceId,
   workspaceRootPath,
@@ -61,7 +63,11 @@ export function SkillsListPanel({
           description={t('skillsList.emptyDescription')}
           docKey="skills"
         >
-          {workspaceRootPath && (
+          {onAddSkill ? (
+            <Button variant="secondary" onClick={onAddSkill}>
+              {t('skillsList.addSkill')}
+            </Button>
+          ) : workspaceRootPath ? (
             <EditPopover
               align="center"
               trigger={
@@ -71,7 +77,7 @@ export function SkillsListPanel({
               }
               {...getEditConfig('add-skill', workspaceRootPath)}
             />
-          )}
+          ) : null}
         </EntityListEmptyScreen>
       }
       mapItem={(skill) => ({

@@ -73,20 +73,25 @@ export function buildMobileMenuPages({ hasNewWindow, isDebugMode }: BuildOptions
   }
   // Touch users have no keyboard, so the Keyboard Shortcuts leaf is omitted
   // on mobile — the page would render but be useless.
+  // Tapping Settings opens the single SettingsNavigator screen directly rather
+  // than nesting a second Settings list inside the menu sheet (which previously
+  // created a "Settings → Settings..." loop).
   rootRows.push(
     {
       id: 'settings',
       iconName: 'Settings',
       labelKey: 'sidebar.settings',
-      action: { kind: 'navigate', to: 'settings' },
+      action: { kind: 'callback', key: 'openSettings' },
     },
-    {
+  )
+  if (HELP_LINKS.length > 0) {
+    rootRows.push({
       id: 'help',
       iconName: 'HelpCircle',
       labelKey: 'menu.help',
       action: { kind: 'navigate', to: 'help' },
-    },
-  )
+    })
+  }
   if (isDebugMode) {
     rootRows.push({
       id: 'debug',
@@ -97,12 +102,6 @@ export function buildMobileMenuPages({ hasNewWindow, isDebugMode }: BuildOptions
   }
 
   const settingsRows: MobileMenuRow[] = [
-    {
-      id: 'settings-overview',
-      iconName: 'Settings',
-      labelKey: 'menu.settings',
-      action: { kind: 'callback', key: 'openSettings' },
-    },
     ...SETTINGS_ITEMS.map<MobileMenuRow>((item) => ({
       id: `settings-${item.id}`,
       iconName: item.icon,

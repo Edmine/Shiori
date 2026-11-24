@@ -65,7 +65,7 @@ import { registerBunOAuthFlows } from '@earendil-works/pi-ai/bun-oauth';
 registerBunOAuthFlows();
 
 // Model resolution (extracted for testability + custom-endpoint precedence)
-import { resolvePiModel, isDeniedMiniModelId } from './model-resolution.ts';
+import { resolvePiModel, resolvePiModelWithOverrides, isDeniedMiniModelId } from './model-resolution.ts';
 import { pickProviderAppropriateMiniModel } from './pick-mini-model.ts';
 import { queryMiniModel } from './mini-model-query.ts';
 import {
@@ -140,7 +140,7 @@ interface InitMessage {
   branchFromSessionPath?: string;
   branchFromSdkTurnId?: string;
   customEndpoint?: CustomEndpointConfig;
-  customModels?: Array<string | { id: string; contextWindow?: number; supportsImages?: boolean }>;
+  customModels?: Array<string | { id: string; name?: string; contextWindow?: number; supportsImages?: boolean; supportsThinking?: boolean }>;
   /** Compact once context reaches this many tokens (config.json `autoCompactWindow`). */
   autoCompactWindow?: number;
   piAuth?: { provider: string; credential: PiCredential };
@@ -154,7 +154,7 @@ interface RuntimeConfigUpdateMessage {
   authType?: string;
   baseUrl?: string;
   customEndpoint?: CustomEndpointConfig;
-  customModels?: Array<string | { id: string; contextWindow?: number; supportsImages?: boolean }>;
+  customModels?: Array<string | { id: string; name?: string; contextWindow?: number; supportsImages?: boolean; supportsThinking?: boolean }>;
 }
 
 /** Messages from main process (stdin) */
@@ -501,10 +501,12 @@ function registerCustomEndpointModels(
 ): void {
   for (const m of models) {
     customEndpointModelIds.add(m.id);
-    if (m.contextWindow || m.supportsImages !== undefined) {
+    if (m.name || m.contextWindow || m.supportsImages !== undefined || m.supportsThinking !== undefined) {
       customModelOverrides.set(m.id, {
+        ...(m.name ? { name: m.name } : {}),
         ...(m.contextWindow ? { contextWindow: m.contextWindow } : {}),
         ...(m.supportsImages !== undefined ? { supportsImages: m.supportsImages } : {}),
+        ...(m.supportsThinking !== undefined ? { supportsThinking: m.supportsThinking } : {}),
       });
     }
   }
@@ -736,7 +738,7 @@ async function ensureSession(): Promise<AgentSession> {
   // Set model if specified
   if (initConfig.model) {
     try {
-      const piModel = resolvePiModel(modelRegistry, initConfig.model, initConfig.piAuth?.provider, shouldPreferCustomEndpoint());
+      const piModel = resolvePiModelWithOverrides(modelRegistry, initConfig.model, initConfig.piAuth?.provider, shouldPreferCustomEndpoint(), initConfig.customModels);
       if (piModel) {
         // Verify resolved model's provider is compatible with the authenticated provider.
         // Without this, a model that resolves to a different provider (e.g. azure
@@ -1705,7 +1707,7 @@ async function handleUpdateRuntimeConfig(msg: RuntimeConfigUpdateMessage): Promi
     }
 
     if (piSession && piModelRegistry) {
-      let piModel = resolvePiModel(piModelRegistry, msg.model, initConfig.piAuth?.provider, shouldPreferCustomEndpoint());
+      let piModel = resolvePiModelWithOverrides(piModelRegistry, msg.model, initConfig.piAuth?.provider, shouldPreferCustomEndpoint(), initConfig.customModels);
       if (!piModel && initConfig.baseUrl?.trim() && initConfig.customEndpoint) {
         const bareId = stripPiPrefix(msg.model);
         registerCustomEndpointModels(piModelRegistry, initConfig.customEndpoint.api, initConfig.baseUrl.trim(), [{ id: bareId }]);
@@ -1738,7 +1740,7 @@ async function handleSetModel(msg: Extract<InboundMessage, { type: 'set_model' }
     debugLog(`[set_model] No active session or model registry, ignoring`);
     return;
   }
-  let piModel = resolvePiModel(piModelRegistry, msg.model, initConfig?.piAuth?.provider, shouldPreferCustomEndpoint());
+  let piModel = resolvePiModelWithOverrides(piModelRegistry, msg.model, initConfig?.piAuth?.provider, shouldPreferCustomEndpoint(), initConfig?.customModels);
 
   // For custom endpoints, dynamically register unknown models so mid-session switching works.
   // Uses registerCustomEndpointModels which accumulates into the existing model set

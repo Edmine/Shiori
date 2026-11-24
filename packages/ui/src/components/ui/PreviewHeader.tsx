@@ -10,7 +10,7 @@
 
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, X, type LucideIcon } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 /**
@@ -108,6 +108,12 @@ export interface PreviewHeaderProps {
   rightActions?: React.ReactNode
   /** Height of the header (default: 50px for windows, 44px for overlays) */
   height?: number
+  /**
+   * Right-side inset (px) occupied by native top-right window caption buttons
+   * (Windows titleBarOverlay). When > 0, moves the close control to the top-left
+   * as a Back button and reserves right padding so actions never overlap `- □ ×`.
+   */
+  windowCaptionInsetRight?: number
   /** Additional className for the header */
   className?: string
   /** Inline styles */
@@ -127,20 +133,45 @@ export function PreviewHeader({
   onClose,
   rightActions,
   height = 50,
+  windowCaptionInsetRight = 0,
   className,
   style,
 }: PreviewHeaderProps) {
   const { t } = useTranslation()
+  const useWindowsCaptionLayout = windowCaptionInsetRight > 0
+
   return (
     <div
       className={cn(
         'shrink-0 flex items-center justify-between px-3',
         className
       )}
-      style={{ height, ...style }}
+      style={{
+        height,
+        ...(useWindowsCaptionLayout ? { WebkitAppRegion: 'drag' } as React.CSSProperties : {}),
+        ...style,
+      }}
     >
-      {/* Left side - space for traffic lights on macOS, flex-1 to balance with right side */}
-      <div className="flex-1 min-w-[70px]" />
+      {/* Left side - on Windows frameless fullscreen overlays, place Back/Close here
+          so it can never collide with top-right native `- □ ×` window controls. */}
+      <div className="flex-1 min-w-[88px] flex items-center justify-start">
+        {useWindowsCaptionLayout && onClose && (
+          <button
+            onClick={onClose}
+            className={cn(
+              'inline-flex items-center gap-1.5 h-[28px] px-2.5 rounded-[6px] bg-background shadow-minimal cursor-pointer',
+              'text-[13px] font-medium text-foreground/80 hover:text-foreground transition-colors',
+              'focus:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+            )}
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+            title={t('common.closeEsc')}
+            aria-label={t('common.closeEsc')}
+          >
+            <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
+            <span>{t('common.back')}</span>
+          </button>
+        )}
+      </div>
 
       {/* Center - badges row. no-drag so badges are clickable in the window drag region. */}
       <div className="flex items-center gap-2 min-w-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
@@ -148,21 +179,31 @@ export function PreviewHeader({
       </div>
 
       {/* Right side - actions + close button. no-drag so actions are clickable in the window drag region. */}
-      <div className="flex-1 min-w-[70px] flex items-center gap-2 justify-end" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-        {rightActions}
-        {onClose && (
-          <button
-            onClick={onClose}
-            className={cn(
-              'p-1.5 rounded-[6px] bg-background shadow-minimal cursor-pointer',
-              'opacity-70 hover:opacity-100 transition-opacity',
-              'focus:outline-none focus-visible:ring-1 focus-visible:ring-ring'
-            )}
-            title={t('common.closeEsc')}
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
+      <div
+        className="flex-1 min-w-[70px] flex items-center gap-2 justify-end"
+        style={
+          useWindowsCaptionLayout
+            ? { paddingRight: windowCaptionInsetRight, minWidth: windowCaptionInsetRight + 16 }
+            : undefined
+        }
+      >
+        <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          {rightActions}
+          {!useWindowsCaptionLayout && onClose && (
+            <button
+              onClick={onClose}
+              className={cn(
+                'p-1.5 rounded-[6px] bg-background shadow-minimal cursor-pointer',
+                'opacity-70 hover:opacity-100 transition-opacity',
+                'focus:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+              )}
+              title={t('common.closeEsc')}
+              aria-label={t('common.closeEsc')}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

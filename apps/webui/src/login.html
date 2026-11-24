@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Craft Agents — Login</title>
+  <title>Shiori — 登录</title>
   <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
   <link rel="icon" type="image/x-icon" href="./favicon.ico" />
   <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
@@ -23,24 +23,24 @@
 </head>
 <body>
   <div class="brand" aria-hidden="true">
-    <svg viewBox="452 368 115 129" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M474.78218,393.8 L474.78218,368 L566.666667,368 L566.666667,393.8 L474.78218,393.8 Z M521.101,419.6 L521.102306,445.4 L452,445.4 L452,393.8 L566.666667,393.8 L566.666667,419.6 L521.101,419.6 Z M474.78218,497 L474.775667,471.2 L452,471.2 L452,445.4 L566.666667,445.4 L566.666667,497 L474.78218,497 Z" fill="currentColor" fill-rule="nonzero"/></svg>
+    <img src="/icon-192.png" alt="Shiori" style="width: 44px; height: 44px; border-radius: 12px;" />
   </div>
   <div class="card">
-    <h1>Craft Agents</h1>
-    <p class="subtitle">Enter your server token to continue</p>
+    <h1>Shiori</h1>
+    <p class="subtitle">输入电脑端 Shiori 的访问密钥以继续</p>
 
     <form id="login-form">
-      <label for="password">Server Token</label>
+      <label for="password">访问密钥</label>
       <input
         id="password"
         name="password"
         type="password"
-        placeholder="Enter CRAFT_SERVER_TOKEN"
+        placeholder="输入远程访问 Token"
         autocomplete="current-password"
         autofocus
         required
       >
-      <button type="submit" id="submit-btn">Sign In</button>
+      <button type="submit" id="submit-btn">连接 Shiori</button>
     </form>
 
     <div id="error" class="error"></div>
@@ -50,19 +50,60 @@
     const form = document.getElementById('login-form');
     const errorEl = document.getElementById('error');
     const submitBtn = document.getElementById('submit-btn');
+    const passwordInput = document.getElementById('password');
+    const E2E_STORAGE_KEY = 'shiori_relay_e2e_key';
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
+    function bytesToBase64Url(bytes) {
+      let binary = '';
+      for (let idx = 0; idx < bytes.length; idx++) binary += String.fromCharCode(bytes[idx]);
+      return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+    }
+
+    function base64UrlToBytes(value) {
+      const padded = value.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((value.length + 3) % 4);
+      const binary = atob(padded);
+      const out = new Uint8Array(binary.length);
+      for (let idx = 0; idx < binary.length; idx++) out[idx] = binary.charCodeAt(idx);
+      return out;
+    }
+
+    async function maybeEncryptAuthPayload(payloadObj) {
+      const e2eKeyB64 = localStorage.getItem(E2E_STORAGE_KEY);
+      if (!e2eKeyB64 || !window.crypto || !window.crypto.subtle) {
+        return JSON.stringify(payloadObj);
+      }
+      try {
+        const rawKey = base64UrlToBytes(e2eKeyB64);
+        if (rawKey.byteLength !== 32) return JSON.stringify(payloadObj);
+        const cryptoKey = await window.crypto.subtle.importKey('raw', rawKey, { name: 'AES-GCM' }, false, ['encrypt']);
+        const iv = new Uint8Array(12);
+        window.crypto.getRandomValues(iv);
+        const cipherBuf = await window.crypto.subtle.encrypt(
+          { name: 'AES-GCM', iv },
+          cryptoKey,
+          new TextEncoder().encode(JSON.stringify(payloadObj)),
+        );
+        return JSON.stringify({
+          __shiori_e2e__: 1,
+          iv: bytesToBase64Url(iv),
+          ct: bytesToBase64Url(new Uint8Array(cipherBuf)),
+        });
+      } catch (_) {
+        return JSON.stringify(payloadObj);
+      }
+    }
+
+    async function performLogin(password) {
       errorEl.classList.remove('visible');
       submitBtn.disabled = true;
-      submitBtn.textContent = 'Signing in...';
+      submitBtn.textContent = '连接中...';
 
       try {
-        const password = document.getElementById('password').value;
+        const requestBody = await maybeEncryptAuthPayload({ password });
         const res = await fetch('/api/auth', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password }),
+          body: requestBody,
         });
 
         if (res.ok) {
@@ -72,16 +113,45 @@
         }
 
         const data = await res.json().catch(() => ({}));
-        errorEl.textContent = data.error || 'Authentication failed';
+        errorEl.textContent = data.error || '密钥验证失败';
         errorEl.classList.add('visible');
       } catch (err) {
-        errorEl.textContent = 'Network error — is the server running?';
+        errorEl.textContent = '网络错误，请确认电脑端 Shiori 正在运行';
         errorEl.classList.add('visible');
       } finally {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Sign In';
+        submitBtn.textContent = '连接 Shiori';
       }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await performLogin(passwordInput.value);
     });
+
+    // Support one-tap QR scan auto-login via URL fragment (#token=...)
+    // Fragments are never sent to the server in HTTP requests and are stripped immediately.
+    (function autoLoginFromHash() {
+      const hash = window.location.hash || '';
+      if (!hash) return;
+      const e2eMatch = hash.match(/[#&]e2e=([^&]+)/);
+      const tokenMatch = hash.match(/[#&]token=([^&]+)/);
+      if (!e2eMatch && !tokenMatch) return;
+      try {
+        if (e2eMatch) {
+          const e2eKey = decodeURIComponent(e2eMatch[1]);
+          if (e2eKey) localStorage.setItem(E2E_STORAGE_KEY, e2eKey);
+        }
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+        if (tokenMatch) {
+          const token = decodeURIComponent(tokenMatch[1]);
+          if (token) {
+            passwordInput.value = token;
+            void performLogin(token);
+          }
+        }
+      } catch (_) {}
+    })();
   </script>
 </body>
 </html>

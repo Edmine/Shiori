@@ -36,6 +36,7 @@ import { FlipOnChange, cancelFlip, cancelSlideOut, playSlideX, SPRING, type Flip
 import { cn } from '@/lib/utils'
 import { useToastAnchor } from '@/components/ui/sonner'
 import { panelStackAtom, focusedPanelIdAtom, focusedPanelRouteAtom } from '@/atoms/panel-stack'
+import type { PanelStackEntry } from '@/atoms/panel-stack'
 import { parseRouteToNavigationState } from '../../../shared/route-parser'
 import { isDetailNavState } from '@/lib/nav-helpers'
 import { PanelSlot, type PanelSlotElements } from './PanelSlot'
@@ -48,9 +49,6 @@ import {
   RADIUS_EDGE,
   RADIUS_INNER,
 } from './panel-constants'
-
-/** Visual breathing room between the fixed compact TopBar and the first panel. */
-const COMPACT_PANEL_TOP_GAP = 8
 
 interface PanelStackContainerProps {
   sidebarSlot: React.ReactNode
@@ -96,6 +94,18 @@ export function PanelStackContainer({
   const visiblePanels = isCompact
     ? contentPanels.filter(e => e.id === focusedPanelId).slice(0, 1)
     : contentPanels
+
+  // Preserve the outgoing detail panel's route while the iOS slide-out animation plays
+  // so navigating back from e.g. `settings/appearance` → `settings` slides out the
+  // actual Appearance page instead of flashing the default App page or snapping away.
+  const [retainedDetailEntry, setRetainedDetailEntry] = useState<PanelStackEntry | null>(null)
+  const activeDetailEntry = hasSelectedContent ? visiblePanels[0] ?? null : null
+  useEffect(() => {
+    if (activeDetailEntry) {
+      setRetainedDetailEntry(activeDetailEntry)
+    }
+  }, [activeDetailEntry])
+  const renderedDetailEntry = activeDetailEntry ?? retainedDetailEntry
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const sidebarElRef = useRef<HTMLDivElement>(null)
@@ -218,36 +228,22 @@ export function PanelStackContainer({
 
   // === COMPACT BRANCH ===
   // Single-panel layout with iOS-style slide between navigator and detail.
-  // Both stay in the DOM; CompactPanelTransition transforms whichever should be
-  // off-screen. Sidebar is hidden by AppShell in compact mode (sidebarWidth = 0).
+  // Navigator stays mounted underneath while the active detail panel slides cleanly
+  // in from the right and slides back out when navigating up one level.
   if (isCompact) {
-    const focusedEntry = visiblePanels[0]
     return (
       <div
         ref={scrollRef}
         data-mobile-menu-root="true"
-        className="flex-1 min-w-0 relative panel-scroll @container/shell"
-        style={{
-          paddingBlock: PANEL_STACK_VERTICAL_OVERFLOW,
-          marginBlock: -PANEL_STACK_VERTICAL_OVERFLOW,
-          marginBottom: -6,
-          paddingBottom: 6,
-          '--compact-panel-stack-top': `${PANEL_STACK_VERTICAL_OVERFLOW + COMPACT_PANEL_TOP_GAP}px`,
-        } as React.CSSProperties}
+        className="flex-1 min-w-0 relative overflow-hidden @container/shell"
       >
         {/* Navigator slot — full width, slides left to -30% when detail focused. */}
         {hasNavigator && (
           <CompactPanelTransition role="navigator" isDetailActive={hasSelectedContent}>
             <div
               data-panel-role="navigator"
-              className="shell-card h-full w-full overflow-hidden relative bg-paper shadow-elev-0"
-              style={{
-                // Compact mode runs flush to the viewport floor — no rounded bottom.
-                borderTopLeftRadius: RADIUS_INNER,
-                borderBottomLeftRadius: 0,
-                borderTopRightRadius: RADIUS_INNER,
-                borderBottomRightRadius: 0,
-              }}
+              data-compact="true"
+              className="h-full w-full overflow-hidden relative bg-paper"
             >
               {navigatorSlot}
             </div>
@@ -255,18 +251,26 @@ export function PanelStackContainer({
         )}
 
         {/* Content slot — full width, slides in from the right when detail focused. */}
-        {focusedEntry && (
-          <CompactPanelTransition role="detail" isDetailActive={hasSelectedContent}>
+        {renderedDetailEntry && (
+          <CompactPanelTransition
+            role="detail"
+            isDetailActive={hasSelectedContent}
+            onTransitionComplete={() => {
+              if (!hasSelectedContent) {
+                setRetainedDetailEntry(null)
+              }
+            }}
+          >
             <div className="h-full w-full flex">
               <PanelSlot
-                key={focusedEntry.id}
-                entry={focusedEntry}
+                key={renderedDetailEntry.id}
+                entry={renderedDetailEntry}
                 isOnly={true}
                 isFocusedPanel={true}
                 isSidebarAndNavigatorHidden={isSidebarAndNavigatorHidden}
                 isAtLeftEdge={isLeftEdge}
                 isAtRightEdge={!isRightSidebarVisible}
-                proportion={focusedEntry.proportion}
+                proportion={renderedDetailEntry.proportion}
                 isCompact={true}
               />
             </div>

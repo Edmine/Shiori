@@ -1,4 +1,6 @@
 import type { ModelRegistry as PiModelRegistry } from '@earendil-works/pi-coding-agent';
+import type { CustomEndpointModelConfig } from './custom-endpoint-models.ts';
+import { normalizeCustomEndpointModelEntry, stripPiPrefix } from './custom-endpoint-models.ts';
 
 // Re-export from shared so the auth-aware mini-model denylist has a single
 // source of truth (also used by `getMiniModel()` at selection time).
@@ -67,6 +69,94 @@ export function resolvePiModel(
     if (piAuthProvider && provider !== piAuthProvider && provider !== 'custom-endpoint') continue;
     const model = modelRegistry.find(provider, bareId);
     if (model) return model;
+  }
+
+  return undefined;
+}
+
+const PREFERRED_TEMPLATE_IDS_BY_PROVIDER: Record<string, readonly string[]> = {
+  openai: ['gpt-6.1-sol', 'gpt-6-astra', 'gpt-6-sol', 'gpt-5.6-sol', 'gpt-5.5', 'gpt-5.4'],
+  'openai-codex': ['gpt-6.1-sol', 'gpt-6-astra', 'gpt-6-sol', 'gpt-5.6-sol', 'gpt-5.5', 'gpt-5.4'],
+  anthropic: ['claude-opus-5-5', 'claude-opus-5', 'claude-sonnet-5-5', 'claude-sonnet-4-6'],
+};
+
+function selectTemplateModelForProvider(
+  modelRegistry: PiModelRegistry,
+  piAuthProvider: string,
+): PiModel | undefined {
+  const candidates = modelRegistry
+    .getAll()
+    .filter((m) => (m as any).provider === piAuthProvider && (m as any).api !== 'openai-decisions');
+  if (candidates.length === 0) return undefined;
+
+  const preferredIds = PREFERRED_TEMPLATE_IDS_BY_PROVIDER[piAuthProvider];
+  if (preferredIds) {
+    for (const id of preferredIds) {
+      const preferred = candidates.find((m) => m.id === id);
+      if (preferred) return preferred;
+    }
+  }
+
+  return [...candidates].sort((a, b) => {
+    const reasoningDiff = Number(Boolean(b.reasoning)) - Number(Boolean(a.reasoning));
+    if (reasoningDiff !== 0) return reasoningDiff;
+    const maxTokensDiff = ((b as any).maxTokens ?? 0) - ((a as any).maxTokens ?? 0);
+    if (maxTokensDiff !== 0) return maxTokensDiff;
+    return (b.contextWindow ?? 0) - (a.contextWindow ?? 0);
+  })[0];
+}
+
+/**
+ * Resolve a Pi SDK model and apply per-model overrides from `customModels`
+ * (contextWindow, supportsImages, supportsThinking, name). If the requested
+ * model is not in the built-in Pi SDK catalog but was explicitly configured
+ * in `customModels` for an authenticated `piAuthProvider`, synthesize a model
+ * definition cloned from an existing template model of the same provider so
+ * newly added subscription/API models work immediately.
+ */
+export function resolvePiModelWithOverrides(
+  modelRegistry: PiModelRegistry,
+  modelId: string,
+  piAuthProvider?: string,
+  preferCustomEndpoint?: boolean,
+  customModels?: CustomEndpointModelConfig[],
+): PiModel | undefined {
+  const bareId = stripPiPrefix(modelId);
+  const normalizedCustom = customModels?.map(normalizeCustomEndpointModelEntry);
+  const overrideEntry = normalizedCustom?.find((entry) => entry.id === bareId);
+
+  const resolved = resolvePiModel(modelRegistry, modelId, piAuthProvider, preferCustomEndpoint);
+  if (resolved) {
+    if (!overrideEntry) return resolved;
+    const nextInput = overrideEntry.supportsImages === undefined
+      ? resolved.input
+      : (overrideEntry.supportsImages ? ['text', 'image'] : ['text']);
+    return {
+      ...resolved,
+      ...(overrideEntry.name ? { name: overrideEntry.name } : {}),
+      ...(overrideEntry.contextWindow ? { contextWindow: overrideEntry.contextWindow } : {}),
+      ...(overrideEntry.supportsThinking !== undefined ? { reasoning: overrideEntry.supportsThinking } : {}),
+      input: nextInput,
+    } as PiModel;
+  }
+
+  // Synthesize from an existing model of the same authenticated provider when the user
+  // explicitly added a newer or custom model ID to a subscription/provider connection.
+  if (piAuthProvider && overrideEntry) {
+    const template = selectTemplateModelForProvider(modelRegistry, piAuthProvider);
+    if (template) {
+      const nextInput = overrideEntry.supportsImages === undefined
+        ? (template.input ?? ['text', 'image'])
+        : (overrideEntry.supportsImages ? ['text', 'image'] : ['text']);
+      return {
+        ...template,
+        id: bareId,
+        name: overrideEntry.name || bareId,
+        contextWindow: overrideEntry.contextWindow ?? template.contextWindow,
+        reasoning: overrideEntry.supportsThinking ?? template.reasoning,
+        input: nextInput,
+      } as PiModel;
+    }
   }
 
   return undefined;

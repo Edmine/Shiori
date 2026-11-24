@@ -1487,7 +1487,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                   {/* Empty state for compact mode - inviting conversational prompt, centered in full popover */}
                   {/* The "what to change" hint is EditPopover's (the only caller passing emptyStateLabel);
                       compact/mobile chats share compactMode but are not edits */}
-                  {compactMode && emptyStateLabel !== undefined && turns.length === 0 && <CompactEmptyState />}
+                  {compactMode && emptyStateLabel !== undefined && turns.length === 0 && <CompactEmptyState title={emptyStateLabel} />}
                   {emptyStateLabel === undefined && !messagesLoading && !messagesLoadError && turns.length === 0 && !hasUnrenderedLoadedMessages && (
                     briefTaskSlug ? (
                       <TaskBriefState

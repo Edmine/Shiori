@@ -286,6 +286,17 @@ export interface ElectronAPI {
   setServerConfig(config: import('@craft-agent/shared/config/server-config').ServerConfig): Promise<void>
   getServerStatus(): Promise<import('@craft-agent/shared/config/server-config').ServerStatus>
 
+  // Cloudflare Workers outbound relay (Alma-style remote access)
+  getRelayStatus(): Promise<import('@craft-agent/shared/config/server-config').RelayStatus>
+  setRelayConfig(config: import('@craft-agent/shared/config/server-config').RelayConfig): Promise<import('@craft-agent/shared/config/server-config').RelayStatus>
+  rotateRelayKeys(): Promise<import('@craft-agent/shared/config/server-config').RelayStatus>
+  cfVerifyToken(input: { apiToken: string; manualAccountId?: string; scriptName?: string }): Promise<import('@craft-agent/shared/config/server-config').CloudflareVerifyResult>
+  cfDeployRelay(input: import('@craft-agent/shared/config/server-config').CloudflareDeployInput): Promise<{
+    deploy: import('@craft-agent/shared/config/server-config').CloudflareDeployResult
+    status: import('@craft-agent/shared/config/server-config').RelayStatus
+  }>
+  cfDeleteRelay(input: import('@craft-agent/shared/config/server-config').CloudflareDeleteInput): Promise<import('@craft-agent/shared/config/server-config').RelayStatus>
+
   // App lifecycle
   relaunchApp(): Promise<void>
   removeWorkspace(workspaceId: string): Promise<boolean>
@@ -293,6 +304,10 @@ export interface ElectronAPI {
   getDefaultZoomLevel?(): Promise<number>
   /** Saves and applies the default zoom; resolves to the stored (snapped) level. */
   setDefaultZoomLevel?(level: number): Promise<number>
+  /** Active Shiori creative lens persisted in preferences.json. */
+  getCreativeLens?(): Promise<string>
+  /** Persists the active Shiori creative lens so subsequent turns inject it into prompt context. */
+  setCreativeLens?(lens: string): Promise<string>
   invokeOnServer(url: string, token: string, channel: string, ...args: any[]): Promise<any>
 
   // Remote session transfer (main-process orchestrated, supports chunked upload)
@@ -534,6 +549,7 @@ export interface ElectronAPI {
   // Skills
   getSkills(workspaceId: string, workingDirectory?: string): Promise<LoadedSkill[]>
   getSkillFiles?(workspaceId: string, skillSlug: string): Promise<SkillFile[]>
+  createSkill(workspaceId: string, input: { name: string; description: string; content: string; slug?: string }): Promise<LoadedSkill>
   deleteSkill(workspaceId: string, skillSlug: string): Promise<void>
   openSkillInEditor(workspaceId: string, skillSlug: string): Promise<void>
   openSkillInFinder(workspaceId: string, skillSlug: string): Promise<void>
@@ -738,6 +754,7 @@ export interface ElectronAPI {
   getSubagentModel(): Promise<'haiku' | 'sonnet' | null>
   setSubagentModel(model: 'haiku' | 'sonnet' | null): Promise<void>
   setWorkspaceDefaultLlmConnection(workspaceId: string, slug: string | null): Promise<{ success: boolean; error?: string }>
+  refreshLlmConnectionModels(slug: string): Promise<{ success: boolean; error?: string }>
 
   // Projects (workspace-scoped)
   getProjects(workspaceId: string): Promise<unknown>

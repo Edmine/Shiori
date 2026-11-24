@@ -97,7 +97,7 @@ export function PanelHeader({
   // page having to forward the prop manually.
   const { leadingAction: contextLeadingAction, isCompactMode, isAtRightEdge = true } = useAppShellContext()
   const leadingAction = explicitLeadingAction ?? contextLeadingAction
-  const reserveWindowsCaption = isWindows && !isWebUI && !isCompactMode && isAtRightEdge
+  const reserveWindowsCaption = isWindows && !isWebUI && isAtRightEdge
 
   // Use context as fallback when prop is not explicitly set.
   // Skip stoplight compensation when leadingAction is present — the back button

@@ -157,38 +157,9 @@ win:
         - x64
   artifactName: "Shiori-${version}-win-${arch}.${ext}"
   files:
-    - dist/**/*
-    - "!dist/renderer/src/**"
-    - "!dist/resources/bin/**"
-    - "!dist/resources/dmg-background*"
-    - "!dist/resources/icon.icns"
-    - "!dist/resources/icon.icon/**"
-    - "!dist/resources/Assets.car"
-    - "!**/*.map"
-    - package.json
-    - packages/shared/src/unified-network-interceptor.ts
-    - packages/shared/src/interceptor-common.ts
-    - packages/shared/src/feature-flags.ts
-    - packages/shared/src/interceptor-request-utils.ts
-    - resources/scripts/**/*
-    - resources/bin/markitdown
-    - resources/bin/markitdown.cmd
-    - resources/bin/pdf-tool
-    - resources/bin/pdf-tool.cmd
-    - resources/bin/xlsx-tool
-    - resources/bin/xlsx-tool.cmd
-    - resources/bin/doc-diff
-    - resources/bin/doc-diff.cmd
-    - resources/bin/img-tool
-    - resources/bin/img-tool.cmd
-    - resources/bin/docx-tool
-    - resources/bin/docx-tool.cmd
-    - resources/bin/pptx-tool
-    - resources/bin/pptx-tool.cmd
-    - resources/bin/ical-tool
-    - resources/bin/ical-tool.cmd
-    - "!node_modules/**/*"
     - "!vendor/**/*"
+    - "!**/resources/bin/darwin-*/**"
+    - "!**/resources/bin/linux-*/**"
   # Copy executables as extraResources to avoid EBUSY file locking (see comment above)
   extraResources:
     - from: node_modules/@anthropic-ai/claude-agent-sdk

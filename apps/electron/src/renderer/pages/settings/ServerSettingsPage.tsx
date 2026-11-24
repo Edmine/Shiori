@@ -7,12 +7,15 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Copy, Eye, EyeOff, AlertTriangle, RotateCw } from 'lucide-react'
+import { Copy, Eye, EyeOff, AlertTriangle, RotateCw, Smartphone, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
+import { QRCodeSVG } from 'qrcode.react'
 import { Button, IconButton } from '@/components/ui/button'
 import { Spinner } from '@craft-agent/ui'
+import { cn } from '@/lib/utils'
 import type { DetailsPageMeta } from '@/lib/navigation-registry'
-import type { ServerConfig, ServerStatus } from '@craft-agent/shared/config/server-config'
+import type { RelayConfig, ServerConfig, ServerStatus } from '@craft-agent/shared/config/server-config'
+import { CloudflareRelaySection } from './CloudflareRelaySection'
 
 import {
   SettingsPage,
@@ -68,10 +71,13 @@ export default function ServerSettingsPage() {
     token: '',
   })
   const [savedForm, setSavedForm] = useState<ServerFormState>(form)
+  const [relayConfig, setRelayConfig] = useState<RelayConfig | undefined>(undefined)
   const [status, setStatus] = useState<ServerStatus | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [tokenVisible, setTokenVisible] = useState(false)
+  const [selectedAddressIdx, setSelectedAddressIdx] = useState(0)
+  const [embedTokenInQr, setEmbedTokenInQr] = useState(true)
   const [error, setError] = useState<string>()
 
   const isDirty = JSON.stringify(form) !== JSON.stringify(savedForm)
@@ -85,6 +91,7 @@ export default function ServerSettingsPage() {
       const formState = configToForm(config)
       setForm(formState)
       setSavedForm(formState)
+      setRelayConfig(config.relay)
       setStatus(serverStatus)
     } catch (err) {
       console.error('Failed to load server settings:', err)
@@ -164,9 +171,25 @@ export default function ServerSettingsPage() {
   const hasTls = !!(form.tlsCertPath && form.tlsKeyPath)
   const needsRestart = status?.needsRestart ?? false
   const showServerDetails = form.enabled || savedForm.enabled
+  const lanAddresses = status?.lanAddresses ?? []
+  const activeEndpoint = lanAddresses[selectedAddressIdx] ?? lanAddresses[0]
+  const activeWebUrl = activeEndpoint?.webUrl ?? status?.webUrl ?? (status ? status.url.replace(/^ws/, 'http') : '')
+  const activeWsUrl = activeEndpoint?.wsUrl ?? status?.url ?? ''
+  const qrTargetUrl = activeWebUrl
+    ? (embedTokenInQr && status?.token
+        ? `${activeWebUrl}/login#token=${encodeURIComponent(status.token)}`
+        : activeWebUrl)
+    : ''
+  const isServerActive = !!(status && savedForm.enabled && !needsRestart)
 
   return (
     <SettingsPage title={t("settings.server.title")} description={t("settings.server.description")}>
+
+      {/* Cloudflare Workers Public Relay (Alma-style outbound tunnel + 1-click deploy) */}
+      <CloudflareRelaySection
+        initialRelayConfig={relayConfig}
+        onRelayConfigUpdated={(nextRelay) => setRelayConfig(nextRelay)}
+      />
 
       {/* Enable toggle + restart banner */}
       <SettingsSection title={t("settings.server.remoteAccess")}>
@@ -194,6 +217,91 @@ export default function ServerSettingsPage() {
         )}
       </SettingsSection>
 
+      {/* Mobile QR Pairing — visible when server mode is actively running */}
+      {isServerActive && activeWebUrl && (
+        <SettingsSection
+          title={t("settings.server.mobileAccess", "手机远程访问")}
+          description={t("settings.server.mobileAccessDesc", "手机与电脑处于同一 Wi-Fi（或已加入同一 Tailscale 网络）时，扫码即可直接在手机浏览器中使用本机 Shiori。")}
+        >
+          <SettingsCard>
+            <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
+              <div className="flex shrink-0 flex-col items-center gap-2">
+                <div className="rounded-xl bg-white p-3 shadow-xs ring-1 ring-black/10">
+                  <QRCodeSVG value={qrTargetUrl} size={156} level="M" />
+                </div>
+                <span className="flex items-center gap-1 text-caption text-tertiary">
+                  <Smartphone className="size-3" />
+                  {embedTokenInQr
+                    ? t("settings.server.qrAutoLoginHint", "扫码自动登录")
+                    : t("settings.server.qrManualLoginHint", "扫码后手动输入密钥")}
+                </span>
+              </div>
+
+              <div className="flex min-w-0 flex-1 flex-col gap-3">
+                {lanAddresses.length > 1 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {lanAddresses.map((addr, idx) => (
+                      <button
+                        key={`${addr.label}-${addr.ip}`}
+                        type="button"
+                        onClick={() => setSelectedAddressIdx(idx)}
+                        className={cn(
+                          "rounded-full px-2.5 py-1 text-caption font-medium transition-colors",
+                          idx === selectedAddressIdx
+                            ? "bg-accent-tint text-accent ring-1 ring-inset ring-accent/30"
+                            : "bg-fill-hover text-secondary hover:text-foreground",
+                        )}
+                      >
+                        {addr.label} · {addr.ip}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <div className="text-label-sm font-medium text-secondary">
+                    {t("settings.server.mobileUrl", "手机访问地址")}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <code className="min-w-0 flex-1 truncate rounded-md bg-fill-hover px-2.5 py-1.5 font-mono text-mono-ui text-foreground">
+                      {activeWebUrl}
+                    </code>
+                    <IconButton
+                      size="sm"
+                      aria-label={t("common.copy")}
+                      icon={<Copy className="size-3.5" />}
+                      onClick={() => handleCopy(activeWebUrl, t("settings.server.mobileUrl", "手机访问地址"))}
+                    />
+                    <IconButton
+                      size="sm"
+                      aria-label={t("common.openInBrowser", "在浏览器中打开")}
+                      icon={<ExternalLink className="size-3.5" />}
+                      onClick={() => window.electronAPI.openUrl(activeWebUrl)}
+                    />
+                  </div>
+                </div>
+
+                <label className="flex cursor-pointer items-center gap-2 text-label-sm text-secondary select-none">
+                  <input
+                    type="checkbox"
+                    checked={embedTokenInQr}
+                    onChange={(e) => setEmbedTokenInQr(e.target.checked)}
+                    className="size-3.5 rounded accent-[var(--accent)]"
+                  />
+                  <span>{t("settings.server.embedTokenInQr", "二维码内嵌访问密钥（扫码免输入，仅限信任环境）")}</span>
+                </label>
+
+                <p className="text-caption leading-relaxed text-tertiary">
+                  {status?.webuiAvailable === false
+                    ? t("settings.server.webuiMissingHint", "未检测到 WebUI 静态资源，请先构建 WebUI。")
+                    : t("settings.server.firewallHint", "如手机无法打开，请在 Windows 防火墙允许 Shiori 访问专用网络，或使用 Tailscale 跨网直连。")}
+                </p>
+              </div>
+            </div>
+          </SettingsCard>
+        </SettingsSection>
+      )}
+
       {/* Connection + TLS — only visible when server mode is relevant */}
       {showServerDetails && (
         <SettingsSection title={t("settings.server.connectionSection")}>
@@ -210,13 +318,13 @@ export default function ServerSettingsPage() {
                 <SettingsRow label={t("common.url")}>
                   <div className="flex items-center gap-1">
                     <code className="rounded-xs bg-fill-hover px-1.5 py-0.5 font-mono text-mono-ui text-secondary">
-                      {status.url}
+                      {activeWsUrl || status.url}
                     </code>
                     <IconButton
                       size="sm"
                       aria-label={t("common.copy")}
                       icon={<Copy className="size-3.5" />}
-                      onClick={() => handleCopy(status.url, 'URL')}
+                      onClick={() => handleCopy(activeWsUrl || status.url, 'URL')}
                     />
                   </div>
                 </SettingsRow>
@@ -247,7 +355,7 @@ export default function ServerSettingsPage() {
             <SettingsRow label={t("settings.server.certificate")}>
               <div className="flex items-center gap-2">
                 <span className="max-w-[200px] truncate text-label-sm text-tertiary">
-                  {form.tlsCertPath || 'Not configured'}
+                  {form.tlsCertPath || t("settings.server.notConfigured", "未配置")}
                 </span>
                 <Button variant="secondary" size="sm" onClick={handleBrowseCert}>
                   {t("common.browse")}
@@ -258,7 +366,7 @@ export default function ServerSettingsPage() {
             <SettingsRow label={t("settings.server.privateKey")}>
               <div className="flex items-center gap-2">
                 <span className="max-w-[200px] truncate text-label-sm text-tertiary">
-                  {form.tlsKeyPath || 'Not configured'}
+                  {form.tlsKeyPath || t("settings.server.notConfigured", "未配置")}
                 </span>
                 <Button variant="secondary" size="sm" onClick={handleBrowseKey}>
                   {t("common.browse")}

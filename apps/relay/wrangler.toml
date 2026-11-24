@@ -1,0 +1,20 @@
+name = "shiori-relay"
+main = "worker.mjs"
+compatibility_date = "2025-04-01"
+
+# Zero-cost observability guard: keep Workers Logs disabled on Free plan
+[observability]
+enabled = false
+
+[vars]
+# Hard limits to keep usage strictly inside Cloudflare Workers Free Plan
+MAX_CLIENTS = "4"
+DAILY_DO_REQUEST_CAP = "80000"
+
+[[durable_objects.bindings]]
+name = "TUNNEL_ROOM"
+class_name = "TunnelRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["TunnelRoom"]

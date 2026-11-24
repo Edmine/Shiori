@@ -10,7 +10,8 @@
  *    for separate-port deployments or development.
  */
 
-import { join, extname } from 'node:path'
+import { join, extname, resolve, sep } from 'node:path'
+import { readFile, stat } from 'node:fs/promises'
 import {
   RateLimiter,
   initPasswordHash,
@@ -21,6 +22,7 @@ import {
   buildLogoutCookie,
 } from './auth'
 import { generateCallbackPage } from '@craft-agent/shared/auth'
+import { decryptE2eEnvelopeObject, importE2eKey, isE2eEnvelope } from '../relay/e2e-crypto'
 import type { PlatformServices } from '../runtime/platform'
 import type { IOAuthFlowStore } from '../handlers/oauth-flow-store-interface'
 import type { ISessionManager } from '../handlers/session-manager-interface'
@@ -51,6 +53,35 @@ const MIME_TYPES: Record<string, string> = {
 function getMimeType(path: string): string {
   return MIME_TYPES[extname(path).toLowerCase()] ?? 'application/octet-stream'
 }
+
+/**
+ * Read a static file inside `webuiDir` safely (works in both Electron/Node.js and Bun).
+ * Rejects path traversal attempts and directories.
+ */
+async function readStaticFile(webuiDir: string, relativePath: string): Promise<Buffer | null> {
+  const root = resolve(webuiDir)
+  const cleaned = relativePath.replace(/^\/+/, '')
+  const target = resolve(root, cleaned)
+  if (target !== root && !target.startsWith(root + sep)) {
+    return null
+  }
+  try {
+    const info = await stat(target)
+    if (!info.isFile()) return null
+    return await readFile(target)
+  } catch {
+    return null
+  }
+}
+
+const PUBLIC_STATIC_PATHS = new Set([
+  '/favicon.ico',
+  '/favicon.svg',
+  '/apple-touch-icon.png',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/manifest.json',
+])
 
 function getForwardedValue(req: Request, key: 'proto' | 'host'): string | null {
   const forwarded = req.headers.get('forwarded')
@@ -100,6 +131,15 @@ export function resolveWebSocketUrl(
 ): string {
   if (publicWsUrl) return publicWsUrl
 
+  // Requests tunneled through Shiori Cloudflare Workers Relay upgrade at /ws on the relay origin
+  if (req.headers.get('x-shiori-relay') === '1') {
+    const relayHost = getRequestHost(req)
+    if (relayHost) {
+      const proto = getRequestProto(req) === 'https' ? 'wss' : 'ws'
+      return `${proto}://${relayHost}/ws`
+    }
+  }
+
   const host = getRequestHost(req)
   if (host) {
     return `${wsProtocol}://${formatHostWithPort(host, wsPort)}`
@@ -147,6 +187,8 @@ export interface WebuiHandlerOptions {
    * and 'direct' is used as the rate-limit key.
    */
   trustedProxies?: string[]
+  /** Optional getter for active relay E2EE key (allows encrypted /api/auth + advertises e2eRequired) */
+  getRelayE2eKey?: () => string | undefined
 }
 
 // ---------------------------------------------------------------------------
@@ -216,9 +258,9 @@ export function createWebuiHandler(options: WebuiHandlerOptions): WebuiHandler {
 
     // ── Login page (no auth) ──
     if (path === '/login' || path === '/login/') {
-      const loginFile = Bun.file(join(webuiDir, 'login.html'))
-      if (await loginFile.exists()) {
-        return new Response(loginFile, {
+      const loginBytes = await readStaticFile(webuiDir, 'login.html')
+      if (loginBytes) {
+        return new Response(new Uint8Array(loginBytes), {
           headers: { 'Content-Type': 'text/html; charset=utf-8' },
         })
       }
@@ -226,10 +268,10 @@ export function createWebuiHandler(options: WebuiHandlerOptions): WebuiHandler {
     }
 
     // ── Static assets that login page needs (no auth) ──
-    if (path === '/favicon.ico' || path.startsWith('/login-assets/')) {
-      const file = Bun.file(join(webuiDir, path))
-      if (await file.exists()) {
-        return new Response(file, {
+    if (PUBLIC_STATIC_PATHS.has(path) || path.startsWith('/login-assets/')) {
+      const bytes = await readStaticFile(webuiDir, path)
+      if (bytes) {
+        return new Response(new Uint8Array(bytes), {
           headers: { 'Content-Type': getMimeType(path) },
         })
       }
@@ -251,7 +293,18 @@ export function createWebuiHandler(options: WebuiHandlerOptions): WebuiHandler {
 
       let body: { password?: string }
       try {
-        body = await req.json() as { password?: string }
+        const parsed = await req.json() as unknown
+        if (isE2eEnvelope(parsed)) {
+          const activeE2eKey = options.getRelayE2eKey?.()
+          if (!activeE2eKey) {
+            return Response.json({ error: 'E2EE is not active on desktop' }, { status: 400 })
+          }
+          const cryptoKey = await importE2eKey(activeE2eKey)
+          const decryptedJson = await decryptE2eEnvelopeObject(cryptoKey, parsed)
+          body = JSON.parse(decryptedJson) as { password?: string }
+        } else {
+          body = parsed as { password?: string }
+        }
       } catch {
         return Response.json({ error: 'Invalid request body' }, { status: 400 })
       }
@@ -353,8 +406,11 @@ export function createWebuiHandler(options: WebuiHandlerOptions): WebuiHandler {
       if (!configSession) {
         return Response.json({ error: 'Unauthorized' }, { status: 401 })
       }
+      const isRelayed = req.headers.get('x-shiori-relay') === '1'
+      const e2eRequired = isRelayed && Boolean(options.getRelayE2eKey?.())
       return Response.json({
         wsUrl: resolveWebSocketUrl(req, { publicWsUrl, wsProtocol, wsPort }),
+        e2eRequired,
       })
     }
 
@@ -381,25 +437,32 @@ export function createWebuiHandler(options: WebuiHandlerOptions): WebuiHandler {
     if (!session) {
       const accept = req.headers.get('accept') ?? ''
       if (accept.includes('text/html') || path === '/' || path === '') {
-        return Response.redirect('/login', 302)
+        return new Response(null, {
+          status: 302,
+          headers: { Location: '/login' },
+        })
       }
       return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // ── Serve SPA static files ──
     if (path !== '/') {
-      const file = Bun.file(join(webuiDir, path))
-      if (await file.exists()) {
-        return new Response(file, {
-          headers: { 'Content-Type': getMimeType(path) },
+      const bytes = await readStaticFile(webuiDir, path)
+      if (bytes) {
+        const headers: Record<string, string> = { 'Content-Type': getMimeType(path) }
+        if (path.startsWith('/assets/')) {
+          headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+        }
+        return new Response(new Uint8Array(bytes), {
+          headers,
         })
       }
     }
 
     // SPA fallback — serve index.html for all non-file routes
-    const indexFile = Bun.file(join(webuiDir, 'index.html'))
-    if (await indexFile.exists()) {
-      return new Response(indexFile, {
+    const indexBytes = await readStaticFile(webuiDir, 'index.html')
+    if (indexBytes) {
+      return new Response(new Uint8Array(indexBytes), {
         headers: { 'Content-Type': 'text/html; charset=utf-8' },
       })
     }

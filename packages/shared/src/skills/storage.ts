@@ -7,15 +7,17 @@
 
 import {
   existsSync,
+  mkdirSync,
   readFileSync,
   readdirSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import matter from 'gray-matter';
-import type { LoadedSkill, SkillMetadata, SkillSource } from './types.ts';
+import type { CreateSkillInput, LoadedSkill, SkillMetadata, SkillSource } from './types.ts';
 import { getWorkspaceSkillsPath } from '../workspaces/storage.ts';
 import {
   validateIconValue,
@@ -287,8 +289,63 @@ export function getSkillIconPath(workspaceRoot: string, slug: string): string | 
 }
 
 // ============================================================
-// Delete Operations
+// Create & Delete Operations
 // ============================================================
+
+/**
+ * Generate a valid unique lowercase slug for a new skill.
+ */
+function generateSkillSlug(workspaceRoot: string, name: string, explicitSlug?: string): string {
+  const raw = (explicitSlug || name)
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  const base = raw || `skill-${Date.now().toString(36)}`;
+  let slug = base;
+  let counter = 2;
+  while (skillExists(workspaceRoot, slug)) {
+    slug = `${base}-${counter}`;
+    counter += 1;
+  }
+  return slug;
+}
+
+/**
+ * Create a new skill in a workspace with a valid SKILL.md file.
+ */
+export function createSkill(workspaceRoot: string, input: CreateSkillInput): LoadedSkill {
+  const name = input.name.trim();
+  const description = input.description.trim();
+  const body = input.content.trim();
+
+  if (!name) {
+    throw new Error('Skill name is required');
+  }
+  if (!description) {
+    throw new Error('Skill description is required');
+  }
+
+  const slug = generateSkillSlug(workspaceRoot, name, input.slug);
+  const skillsDir = getWorkspaceSkillsPath(workspaceRoot);
+  const skillDir = join(skillsDir, slug);
+  mkdirSync(skillDir, { recursive: true });
+
+  const fileContent = matter.stringify(body ? `${body}\n` : `# ${name}\n`, {
+    name,
+    description,
+  });
+
+  writeFileSync(join(skillDir, 'SKILL.md'), fileContent, 'utf-8');
+  invalidateSkillsCache();
+
+  const loaded = loadSkill(workspaceRoot, slug);
+  if (!loaded) {
+    throw new Error(`Failed to load newly created skill: ${slug}`);
+  }
+  return loaded;
+}
 
 /**
  * Delete a skill from a workspace

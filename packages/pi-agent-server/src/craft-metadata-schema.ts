@@ -8,7 +8,7 @@ const CRAFT_DISPLAY_NAME_SCHEMA = {
 
 const CRAFT_INTENT_SCHEMA = {
   type: 'string',
-  description: 'Craft UI metadata: concise tool-call intent for display only.',
+  description: 'Craft UI metadata: short label inside the collapsed tool log only (does not replace visible chat progress updates).',
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {

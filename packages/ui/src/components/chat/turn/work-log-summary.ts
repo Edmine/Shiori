@@ -29,52 +29,59 @@ export function getWorkLogPreview(
   hasResponse?: boolean,
   isComplete?: boolean
 ): WorkLogPreview {
-  // If we have an explicit intent, use it
+  const reversed = [...activities].reverse()
+
+  // While actively executing, prioritize live/latest work so the header tracks progress
+  // instead of freezing on step 1's old intent.
+  if (!isComplete) {
+    if (isStreaming && hasResponse) return { text: i18n.t('turnCard.responding') }
+
+    const runningTask = reversed.find(a => isParentTaskTool(a.toolName ?? '') && a.status === 'running')
+    if (runningTask?.toolInput?.description) {
+      return { text: runningTask.toolInput.description as string }
+    }
+
+    const runningWithIntent = reversed.find(a => a.status === 'running' && a.intent)
+    if (runningWithIntent?.intent) {
+      return { text: runningWithIntent.intent }
+    }
+
+    const runningTools = reversed.filter(a => a.status === 'running' && a.toolName)
+    if (runningTools.length > 0) {
+      const toolNames = runningTools
+        .map(a => a.displayName || getToolDisplayName(a.toolName!))
+        .slice(0, 3)
+      return { text: `${toolNames.join(', ')}...` }
+    }
+
+    const latestIntermediate = reversed.find(a => a.type === 'intermediate' && a.content?.trim())
+    if (latestIntermediate?.content) {
+      return { text: latestIntermediate.content.trim() }
+    }
+
+    const latestWithIntent = reversed.find(a => a.intent)
+    if (latestWithIntent?.intent) {
+      return { text: latestWithIntent.intent }
+    }
+
+    if (intent) return { text: intent }
+
+    return { text: i18n.t('turnCard.starting') }
+  }
+
+  // Completed state: show latest meaningful intent or task description for quick scanning
+  const latestWithIntent = reversed.find(a => a.intent)
+  if (latestWithIntent?.intent) {
+    return { text: latestWithIntent.intent }
+  }
+
   if (intent) return { text: intent }
 
-  // Find the most relevant activity intent
-  const activityWithIntent = activities.find(a => a.intent)
-  if (activityWithIntent?.intent) return { text: activityWithIntent.intent }
-
-  // Check if we're in responding state
-  if (isStreaming && hasResponse) return { text: i18n.t('turnCard.responding') }
-
-  // Find running Task tools and show their description
-  const runningTask = activities.find(a => isParentTaskTool(a.toolName ?? '') && a.status === 'running')
-  if (runningTask?.toolInput?.description) {
-    return { text: runningTask.toolInput.description as string }
+  const latestTask = reversed.find(a => isParentTaskTool(a.toolName ?? '') && a.toolInput?.description)
+  if (latestTask?.toolInput?.description) {
+    return { text: latestTask.toolInput.description as string }
   }
 
-  // While still streaming, show the latest intermediate message content
-  // This gives visibility into what the LLM is "thinking"
-  if (isStreaming && !isComplete) {
-    const latestIntermediate = [...activities]
-      .reverse()
-      .find(a => a.type === 'intermediate' && a.content)
-    if (latestIntermediate?.content) {
-      return { text: latestIntermediate.content }
-    }
-  }
-
-  // Show running tool names
-  const runningTools = activities.filter(a => a.status === 'running' && a.toolName)
-  if (runningTools.length > 0) {
-    const toolNames = runningTools
-      .map(a => getToolDisplayName(a.toolName!))
-      .slice(0, 3) // Max 3 names
-    return { text: `${toolNames.join(', ')}...` }
-  }
-
-  // When complete, show first Task's description if available
-  const firstTask = activities.find(a => isParentTaskTool(a.toolName ?? ''))
-  if (firstTask?.toolInput?.description) {
-    return { text: firstTask.toolInput.description as string }
-  }
-
-  // When complete, the step count carries the summary ("N steps completed")
-  if (isComplete || (!isStreaming && activities.length > 0)) {
-    return {}
-  }
-
-  return { text: i18n.t('turnCard.starting') }
+  // Fallback: step count carries the summary ("N steps completed")
+  return {}
 }

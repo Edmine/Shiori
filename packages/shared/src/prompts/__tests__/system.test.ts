@@ -123,6 +123,17 @@ describe('system prompt guidance', () => {
       expect(prompt).toContain('read guide resources a source points at before using its tools')
     }
   })
+
+  it('requires visible chat progress updates instead of relying only on thinking or tool _intent', () => {
+    const defaultPrompt = getSystemPrompt(undefined, undefined, '/tmp/workspace', '/tmp/workspace')
+    const codingPrompt = getSystemPrompt(undefined, undefined, '/tmp/workspace', '/tmp/workspace', undefined, undefined, undefined, undefined, 'coding')
+
+    for (const prompt of [defaultPrompt, codingPrompt]) {
+      expect(prompt).toContain('## Progress Updates')
+      expect(prompt).toContain('Visible text is required')
+      expect(prompt).toContain('Never rely on thinking or `_intent` alone')
+    }
+  })
 })
 
 describe('includeCoAuthoredBy handling', () => {
@@ -384,7 +395,7 @@ describe('coding agent profile', () => {
       const end = prompt.indexOf('\n## ', start)
       return prompt.slice(start, end === -1 ? undefined : end)
     }
-    for (const heading of ['## Preview Blocks', '## Intelligent UI', '## Structured Data', '## Diagrams', '## Subagents', '## LLM Tool', '## Pages', '## Document Tools']) {
+    for (const heading of ['## Progress Updates', '## Preview Blocks', '## Intelligent UI', '## Structured Data', '## Diagrams', '## Subagents', '## LLM Tool', '## Pages', '## Document Tools']) {
       expect(plain).toContain(section(heading))
     }
     if (getBrowserToolEnabled()) {

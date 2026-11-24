@@ -27,6 +27,8 @@ type ApiToChannelMapKeys = Exclude<
   | 'removeWorkspace' // direct IPC to main process — modifies local config
   | 'getDefaultZoomLevel' // direct IPC to main process — per-device zoom preference
   | 'setDefaultZoomLevel' // direct IPC to main process — saves and applies the default zoom
+  | 'getCreativeLens' // direct IPC to main process — reads active creative lens
+  | 'setCreativeLens' // direct IPC to main process — persists active creative lens
   | 'invokeOnServer' // direct IPC to main process — cross-server RPC
   | 'transferSessionToWorkspace' // direct IPC to main process — orchestrated remote transfer
   | 'onTransferProgress' // direct IPC listener — chunk upload progress

@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "motion/react"
 import {
   Archive,
   Settings,
+  ChevronLeft,
   ChevronRight,
   ChevronDown,
   MoreHorizontal,
@@ -37,10 +38,10 @@ import {
 } from "lucide-react"
 // SessionStatusIcons no longer used - icons come from dynamic sessionStatuses
 import { SourceAvatar } from "@/components/ui/source-avatar"
-import { TopBar } from "./TopBar"
 import { SquarePenRounded } from "../icons/SquarePenRounded"
 import { PanelLeftRounded } from "../icons/PanelLeftRounded"
 import { AppMenu } from "../AppMenu"
+import { CompactWorkspaceSwitcher } from "./CompactWorkspaceSwitcher"
 import { PanelHeaderCenterButton } from "@/components/ui/PanelHeaderCenterButton"
 import { McpIcon } from "../icons/McpIcon"
 import { cn } from "@/lib/utils"
@@ -139,6 +140,8 @@ import { PanelHeader } from "./PanelHeader"
 import { FabNewChat } from "./FabNewChat"
 import { SendToWorkspaceDialog } from "./SendToWorkspaceDialog"
 import { CreateProjectDialog } from "../projects/CreateProjectDialog"
+import { AddSourceDialog } from "../sources/AddSourceDialog"
+import { AddSkillDialog } from "../skills/AddSkillDialog"
 import { MessagingDialogHost } from "@/components/messaging/MessagingDialogHost"
 import { EditPopover, getEditConfig, type EditContextKey } from "@/components/ui/EditPopover"
 import SettingsNavigator from "@/pages/settings/SettingsNavigator"
@@ -1750,18 +1753,33 @@ function AppShellContent({
     }
   }, [activeWorkspace?.id])
 
-  // Handler for "Add Source" context menu action
-  // Opens the EditPopover for adding a new source
-  // Optional sourceType param allows filter-aware context (from subcategory menus or filtered views)
+  // Structured dialog state for Add Source and Add Skill
+  const [addSourceDialogOpen, setAddSourceDialogOpen] = useState(false)
+  const [addSourceInitialType, setAddSourceInitialType] = useState<'mcp' | 'api' | 'local'>('mcp')
+  const [addSkillDialogOpen, setAddSkillDialogOpen] = useState(false)
+
+  // Handler for "Add Source" action — opens structured AddSourceDialog
   const openAddSource = useCallback((sourceType?: 'api' | 'mcp' | 'local') => {
+    if (!activeWorkspace?.id) return
+    setAddSourceInitialType(sourceType ?? 'mcp')
+    setAddSourceDialogOpen(true)
+  }, [activeWorkspace?.id])
+
+  // Fallback handler to open AI-guided EditPopover for adding a source
+  const openAddSourceWithAI = useCallback((sourceType?: 'api' | 'mcp' | 'local') => {
     captureContextMenuPosition()
     const key = sourceType ? `add-source-${sourceType}` as const : 'add-source' as const
     setTimeout(() => setEditPopoverOpen(key), 50)
   }, [captureContextMenuPosition])
 
-  // Handler for "Add Skill" context menu action
-  // Opens the EditPopover for adding a new skill
+  // Handler for "Add Skill" action — opens structured AddSkillDialog
   const openAddSkill = useCallback(() => {
+    if (!activeWorkspace?.id) return
+    setAddSkillDialogOpen(true)
+  }, [activeWorkspace?.id])
+
+  // Fallback handler to open AI-guided EditPopover for adding a skill
+  const openAddSkillWithAI = useCallback(() => {
     captureContextMenuPosition()
     setTimeout(() => setEditPopoverOpen('add-skill'), 50)
   }, [captureContextMenuPosition])
@@ -2468,35 +2486,6 @@ function AppShellContent({
 
   return (
     <AppShellProvider value={resolvedAppShellContextValue}>
-        {/* === TOP BAR (compact/narrow viewport only; desktop uses full-bleed split headers) === */}
-        {isAutoCompact && (
-        <TopBar
-          workspaces={workspaces}
-          activeWorkspaceId={activeWorkspaceId}
-          onSelectWorkspace={onSelectWorkspace}
-          workspaceUnreadMap={workspaceUnreadMap}
-          onWorkspaceCreated={() => onRefreshWorkspaces?.()}
-          onWorkspaceRemoved={() => onRefreshWorkspaces?.()}
-          activeSessionId={effectiveSessionId}
-          onNewChat={() => handleNewChat()}
-          onNewWindow={() => window.electronAPI.menuNewWindow()}
-          onOpenSettings={onOpenSettings}
-          onOpenSettingsSubpage={handleSettingsClick}
-          onOpenKeyboardShortcuts={onOpenKeyboardShortcuts}
-          onOpenStoredUserPreferences={onOpenStoredUserPreferences}
-          onBack={goBack}
-          onForward={goForward}
-          canGoBack={canGoBack}
-          canGoForward={canGoForward}
-          onToggleSidebar={handleToggleSidebarFromPointer}
-          onToggleFocusMode={handleToggleFocusModeFromPointer}
-          onAddSessionPanel={() => handleNewChat(true)}
-          onAddBrowserPanel={() => { void handleNewBrowserWindow() }}
-          isCompact={isAutoCompact}
-          showWorkspaceSwitcher={isAutoCompact || effectiveSidebarAndNavigatorHidden || !isSidebarVisible}
-        />
-        )}
-
       {/* === OUTER LAYOUT: Unified Panel Stack | Right Sidebar === */}
       <div
         ref={shellRef}
@@ -2506,7 +2495,7 @@ function AppShellContent({
           paddingRight: 0,
           paddingBottom: 0,
           paddingLeft: 0,
-          gap: isAutoCompact ? PANEL_GAP : 0,
+          gap: 0,
         }}
       >
         {(() => {
@@ -2575,30 +2564,19 @@ function AppShellContent({
                 )
               )}
               {isSourcesNavigation(navState) && activeWorkspace && (
-                <EditPopover
-                  trigger={
-                    <HeaderIconButton
-                      icon={<Plus className="h-4 w-4" />}
-                      tooltip={t("sidebarMenu.addSource")}
-                      data-tutorial="add-source-button"
-                    />
-                  }
-                  {...getEditConfig(
-                    sourceFilter?.kind === 'type' ? `add-source-${sourceFilter.sourceType}` as EditContextKey : 'add-source',
-                    activeWorkspace.rootPath
-                  )}
+                <HeaderIconButton
+                  icon={<Plus className="h-4 w-4" />}
+                  tooltip={t("sidebarMenu.addSource")}
+                  data-tutorial="add-source-button"
+                  onClick={() => openAddSource(sourceFilter?.kind === 'type' ? sourceFilter.sourceType : undefined)}
                 />
               )}
               {isSkillsNavigation(navState) && activeWorkspace && (
-                <EditPopover
-                  trigger={
-                    <HeaderIconButton
-                      icon={<Plus className="h-4 w-4" />}
-                      tooltip={t("sidebarMenu.addSkill")}
-                      data-tutorial="add-skill-button"
-                    />
-                  }
-                  {...getEditConfig('add-skill', activeWorkspace.rootPath)}
+                <HeaderIconButton
+                  icon={<Plus className="h-4 w-4" />}
+                  tooltip={t("sidebarMenu.addSkill")}
+                  data-tutorial="add-skill-button"
+                  onClick={openAddSkill}
                 />
               )}
               {isAutomationsNavigation(navState) && activeWorkspace && (
@@ -2631,6 +2609,7 @@ function AppShellContent({
                   workspaceRootPath={activeWorkspace?.rootPath}
                   onDeleteSource={handleDeleteSource}
                   onSourceClick={handleSourceSelect}
+                  onAddSource={() => openAddSource(sourceFilter?.kind === 'type' ? sourceFilter.sourceType : undefined)}
                   selectedSourceSlug={isSourcesNavigation(navState) && navState.details ? navState.details.sourceSlug : null}
                   localMcpEnabled={localMcpEnabled}
                 />
@@ -2642,6 +2621,7 @@ function AppShellContent({
                   workspaceRootPath={activeWorkspace?.rootPath}
                   onSkillClick={handleSkillSelect}
                   onDeleteSkill={handleDeleteSkill}
+                  onAddSkill={openAddSkill}
                   selectedSkillSlug={isSkillsNavigation(navState) && navState.details?.type === 'skill' ? navState.details.skillSlug : null}
                 />
               )}
@@ -2672,6 +2652,15 @@ function AppShellContent({
                 <SettingsNavigator
                   selectedSubpage={navState.subpage}
                   onSelectSubpage={(subpage) => handleSettingsClick(subpage)}
+                  isCompact={isAutoCompact}
+                  counts={{
+                    sources: sources.length,
+                    skills: skills.length,
+                    automations: automations.length,
+                  }}
+                  onSelectSources={isAutoCompact ? () => navigate(routes.view.sources(), { skipAutoSelect: true }) : undefined}
+                  onSelectSkills={isAutoCompact ? () => navigate(routes.view.skills(), { skipAutoSelect: true }) : undefined}
+                  onSelectAutomations={isAutoCompact ? () => navigate(routes.view.automations(), { skipAutoSelect: true }) : undefined}
                 />
               )}
               {(isAutoCompact ? isSessionsNavigation(navState) : showSessionListInDesktopSidebar) && (
@@ -2860,23 +2849,68 @@ function AppShellContent({
               style={{ width: '100%' }}
               className="h-full flex flex-col min-w-0 relative z-panel"
             >
-            <PanelHeader
-              title={isSidebarVisible ? listTitle : undefined}
-              compensateForStoplight={!isSidebarVisible}
-              badge={automationFilter?.automationType === 'scheduled' ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="text-muted-foreground/50 cursor-default flex items-center titlebar-no-drag">
-                      <Info className="h-3 w-3" />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-[220px]">
-                    Scheduling requires your machine to be running. It can be locked, but must be powered on.
-                  </TooltipContent>
-                </Tooltip>
-              ) : undefined}
-              actions={sidebarHeaderActions}
-            />
+            {isSessionsNavigation(navState) ? (
+              <PanelHeader
+                titleRow={
+                  <div className="flex items-center gap-1 min-w-0 flex-1">
+                    <AppMenu
+                      onNewChat={() => handleNewChat()}
+                      onNewWindow={() => window.electronAPI.menuNewWindow()}
+                      onOpenSettings={onOpenSettings}
+                      onOpenSettingsSubpage={handleSettingsClick}
+                      onOpenKeyboardShortcuts={onOpenKeyboardShortcuts}
+                      onOpenStoredUserPreferences={onOpenStoredUserPreferences}
+                      onToggleSidebar={handleToggleSidebarFromPointer}
+                      onToggleFocusMode={handleToggleFocusModeFromPointer}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <CompactWorkspaceSwitcher
+                        workspaces={workspaces}
+                        activeWorkspaceId={activeWorkspaceId}
+                        onSelect={onSelectWorkspace}
+                        onWorkspaceCreated={() => onRefreshWorkspaces?.()}
+                        onWorkspaceRemoved={() => onRefreshWorkspaces?.()}
+                        workspaceUnreadMap={workspaceUnreadMap}
+                      />
+                    </div>
+                  </div>
+                }
+                actions={sidebarHeaderActions}
+                className="h-12 border-b border-subtle"
+              />
+            ) : (
+              <PanelHeader
+                leadingAction={
+                  <PanelHeaderCenterButton
+                    icon={<ChevronLeft className="h-4 w-4" />}
+                    onClick={() => {
+                      if (isSourcesNavigation(navState) || isSkillsNavigation(navState) || isAutomationsNavigation(navState)) {
+                        navigate(routes.view.settings(), { skipAutoSelect: true })
+                      } else {
+                        navigate(routes.view.allSessions(), { skipAutoSelect: true })
+                      }
+                    }}
+                    tooltip={t("common.back")}
+                    className="panel-header-back"
+                  />
+                }
+                title={listTitle}
+                badge={automationFilter?.automationType === 'scheduled' ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="text-muted-foreground/50 cursor-default flex items-center titlebar-no-drag">
+                        <Info className="h-3 w-3" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[220px]">
+                      Scheduling requires your machine to be running. It can be locked, but must be powered on.
+                    </TooltipContent>
+                  </Tooltip>
+                ) : undefined}
+                actions={sidebarHeaderActions}
+                className="h-12 border-b border-subtle"
+              />
+            )}
             {activeListContent}
             {/* Mobile/compact-only FAB for starting a new chat — only on the
                 session list itself, not when a chat is open (it would overlap
@@ -3141,6 +3175,33 @@ function AppShellContent({
         onCancel={() => setCreateProjectDialogOpen(false)}
         onSubmit={handleCreateProjectSubmit}
       />
+
+      {/* Structured Add Source dialog (MCP / REST API / Local Folder) */}
+      {activeWorkspaceId && (
+        <AddSourceDialog
+          open={addSourceDialogOpen}
+          workspaceId={activeWorkspaceId}
+          initialType={addSourceInitialType}
+          onOpenChange={setAddSourceDialogOpen}
+          onCreated={(created) => {
+            navigate(routes.view.sources({ sourceSlug: created.slug }))
+          }}
+          onAskShiori={openAddSourceWithAI}
+        />
+      )}
+
+      {/* Structured Add Skill dialog */}
+      {activeWorkspaceId && (
+        <AddSkillDialog
+          open={addSkillDialogOpen}
+          workspaceId={activeWorkspaceId}
+          onOpenChange={setAddSkillDialogOpen}
+          onCreated={(created) => {
+            navigate(routes.view.skills(created.slug))
+          }}
+          onAskShiori={openAddSkillWithAI}
+        />
+      )}
 
       {/* Messaging dialogs (pairing-code + WA connect) — driven by messagingDialogAtom.
           Mounted here so they survive context-menu / dropdown close. */}

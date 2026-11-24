@@ -6,11 +6,25 @@ import { readJsonFileSync } from '../utils/files.ts';
 import { i18n, SUPPORTED_LANGUAGE_CODES } from '../i18n/index.ts';
 import { LOCALE_REGISTRY, type LanguageCode } from '../i18n/registry.ts';
 import { sanitizePromptBody, sanitizePromptLine } from '../prompts/prompt-sanitize.ts';
+import { isCreativeLensId, type CreativeLensId } from '../prompts/creative-lenses.ts';
 
 export interface UserLocation {
   city?: string;
   region?: string;
   country?: string;
+}
+
+/**
+ * Aesthetic & creative taste profile
+ * Helps Shiori align with the user's artistic sensibilities across creative tasks.
+ */
+export interface TasteProfile {
+  /** Preferred aesthetic styles, eras, or sensibilities (e.g., classical literature, Washi minimalism, Viennese opera, Swiss typography) */
+  aesthetics?: string;
+  /** Favorite creators, artworks, films, or visual/literary references */
+  references?: string;
+  /** Clichés and anti-patterns to avoid (e.g., generic SaaS cards, robotic bullet walls) */
+  avoid?: string;
 }
 
 /**
@@ -30,6 +44,10 @@ export interface UserPreferences {
   location?: UserLocation;
   // Free-form notes the agent learns about the user
   notes?: string;
+  // Aesthetic & creative taste profile
+  taste?: TasteProfile;
+  // Default creative lens for new sessions
+  defaultCreativeLens?: CreativeLensId;
   // Diff viewer display preferences
   diffViewer?: DiffViewerPreferences;
   // Whether to include Co-Authored-By trailer on git commits (default: true)
@@ -89,6 +107,10 @@ export function updatePreferences(updates: Partial<UserPreferences>): UserPrefer
     diffViewer: updates.diffViewer
       ? { ...current.diffViewer, ...updates.diffViewer }
       : current.diffViewer,
+    // Merge taste profile if provided
+    taste: updates.taste
+      ? { ...current.taste, ...updates.taste }
+      : current.taste,
   };
   savePreferences(updated);
   return updated;
@@ -133,6 +155,19 @@ export function setPersistedDefaultZoomLevel(level: number): void {
   savePreferences({ ...current, defaultZoomLevel: level });
 }
 
+/** Read the persisted creative lens (validated against CREATIVE_LENS_IDS). Defaults to 'natural'. */
+export function getPersistedCreativeLens(): CreativeLensId {
+  const candidate = loadPreferences().defaultCreativeLens;
+  return isCreativeLensId(candidate) ? candidate : 'natural';
+}
+
+/** Persist the active creative lens. Idempotent — skips write when unchanged. */
+export function setPersistedCreativeLens(lens: CreativeLensId): void {
+  const current = loadPreferences();
+  if (current.defaultCreativeLens === lens) return;
+  savePreferences({ ...current, defaultCreativeLens: lens });
+}
+
 /**
  * Native-language name to request for AI-generated session titles, or
  * `undefined` to let the model follow the conversation's own language.
@@ -160,8 +195,9 @@ export function formatPreferencesForPrompt(): string {
   const langEntry = LOCALE_REGISTRY[langCode];
   const langName = langEntry?.nativeName ?? 'English';
 
+  const hasTaste = !!(prefs.taste && (prefs.taste.aesthetics || prefs.taste.references || prefs.taste.avoid));
   if (Object.keys(prefs).length === 0 ||
-      (!prefs.name && !prefs.timezone && !prefs.location && !prefs.notes && langCode === 'en')) {
+      (!prefs.name && !prefs.timezone && !prefs.location && !prefs.notes && !hasTaste && langCode === 'en')) {
     return '';
   }
 
@@ -195,6 +231,19 @@ export function formatPreferencesForPrompt(): string {
     lines.push('', '### Notes about this user', sanitizePromptBody(prefs.notes, tags));
   }
 
+  if (hasTaste && prefs.taste) {
+    lines.push('', '### Aesthetic & Creative Taste');
+    if (prefs.taste.aesthetics) {
+      lines.push(`- Aesthetics: ${sanitizePromptLine(prefs.taste.aesthetics, tags)}`);
+    }
+    if (prefs.taste.references) {
+      lines.push(`- References: ${sanitizePromptLine(prefs.taste.references, tags)}`);
+    }
+    if (prefs.taste.avoid) {
+      lines.push(`- Avoid: ${sanitizePromptLine(prefs.taste.avoid, tags)}`);
+    }
+  }
+
   lines.push('</user_preferences>', '');
   return lines.join('\n');
 }
@@ -212,7 +261,8 @@ export function formatPreferencesDisplay(): string {
   const hasTimezone = !!prefs.timezone;
   const hasLocation = prefs.location && (prefs.location.city || prefs.location.region || prefs.location.country);
   const hasNotes = !!prefs.notes;
-  const hasAnyPrefs = hasName || hasTimezone || hasLocation || hasNotes;
+  const hasTaste = !!(prefs.taste && (prefs.taste.aesthetics || prefs.taste.references || prefs.taste.avoid));
+  const hasAnyPrefs = hasName || hasTimezone || hasLocation || hasNotes || hasTaste;
 
   lines.push('Your preferences help personalise your experience. The assistant uses these to provide more relevant responses (e.g., timezone for scheduling, language for communication).');
   lines.push('');
@@ -238,6 +288,13 @@ export function formatPreferencesDisplay(): string {
 
     if (hasNotes) {
       lines.push('', '**Notes**', prefs.notes!);
+    }
+
+    if (hasTaste && prefs.taste) {
+      lines.push('', '**Aesthetic & Creative Taste**');
+      if (prefs.taste.aesthetics) lines.push(`- Aesthetics: ${prefs.taste.aesthetics}`);
+      if (prefs.taste.references) lines.push(`- References: ${prefs.taste.references}`);
+      if (prefs.taste.avoid) lines.push(`- Avoid: ${prefs.taste.avoid}`);
     }
 
     if (prefs.updatedAt) {

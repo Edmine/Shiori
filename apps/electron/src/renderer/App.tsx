@@ -80,7 +80,7 @@ import {
   markBackgroundTaskSignal,
   markLiveBackgroundTasksOrphaned,
 } from '@/components/app-shell/background-task-chip-state'
-import { getFileManagerName, isWebUI } from '@/lib/platform'
+import { getFileManagerName, isWebUI, isWindows } from '@/lib/platform'
 import { rendererLog } from '@/lib/logger'
 import { ActionRegistryProvider } from '@/actions'
 import { toast } from 'sonner'
@@ -2009,6 +2009,8 @@ export default function App() {
     onSetTrafficLightsVisible: (visible: boolean) => {
       window.electronAPI.setTrafficLightsVisible(visible)
     },
+    // Reserve top-right width on Windows frameless desktop windows for native `- □ ×` caption overlay
+    windowCaptionInsetRight: isWindows && !isWebUI ? 148 : 0,
   }), [handleOpenFile, handleOpenUrl, linkInterceptor.openFileExternal])
 
   // Loading state - show splash screen

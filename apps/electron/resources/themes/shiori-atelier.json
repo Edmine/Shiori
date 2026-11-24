@@ -1,0 +1,25 @@
+{
+  "name": "Shiori Atelier",
+  "description": "Neutral plaster studio gray and graphite ink that lets your canvas take center stage",
+  "author": "Shiori",
+  "license": "MIT",
+  "supportedModes": ["light", "dark"],
+  "shikiTheme": {
+    "light": "vitesse-light",
+    "dark": "vitesse-dark"
+  },
+  "background": "#f2f0ec",
+  "foreground": "#262624",
+  "accent": "#3b5978",
+  "info": "#8a6f47",
+  "success": "#447359",
+  "destructive": "#b54238",
+  "dark": {
+    "background": "#191918",
+    "foreground": "#e5e3de",
+    "accent": "#7aa0c4",
+    "info": "#c4a77d",
+    "success": "#7ab092",
+    "destructive": "#df6f65"
+  }
+}

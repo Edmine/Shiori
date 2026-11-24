@@ -8,6 +8,7 @@
  */
 
 import { SignJWT, jwtVerify } from 'jose'
+import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
 
 // ---------------------------------------------------------------------------
 // JWT helpers (via jose library)
@@ -89,26 +90,39 @@ export function extractSessionCookie(cookieHeader: string | null): string | null
 }
 
 // ---------------------------------------------------------------------------
-// Password verification (argon2id via Bun.password)
+// Password verification (scrypt via node:crypto — works in both Node/Electron and Bun)
 // ---------------------------------------------------------------------------
 
-let hashedPassword: string | null = null
+const SCRYPT_KEYLEN = 64
+let passwordSalt: Buffer | null = null
+let passwordHash: Buffer | null = null
+
+function deriveScrypt(plaintext: string, salt: Buffer): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    scrypt(plaintext, salt, SCRYPT_KEYLEN, (err, derivedKey) => {
+      if (err) reject(err)
+      else resolve(derivedKey)
+    })
+  })
+}
 
 /**
  * Hash the login password at startup. Must be called before any auth requests.
  * The hash is stored in memory — the raw password is not retained.
  */
 export async function initPasswordHash(plaintext: string): Promise<void> {
-  hashedPassword = await Bun.password.hash(plaintext, { algorithm: 'argon2id' })
+  passwordSalt = randomBytes(16)
+  passwordHash = await deriveScrypt(plaintext, passwordSalt)
 }
 
 /**
- * Verify a user-supplied password against the pre-hashed password.
- * Uses Bun's built-in argon2id verification (constant-time).
+ * Verify a user-supplied password against the pre-hashed password (constant-time).
  */
 export async function verifyPassword(input: string): Promise<boolean> {
-  if (!hashedPassword) return false
-  return Bun.password.verify(input, hashedPassword)
+  if (!passwordSalt || !passwordHash) return false
+  const candidate = await deriveScrypt(input, passwordSalt)
+  if (candidate.length !== passwordHash.length) return false
+  return timingSafeEqual(candidate, passwordHash)
 }
 
 // ---------------------------------------------------------------------------

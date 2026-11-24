@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
-import { X } from "lucide-react"
+import { ArrowLeft, X } from "lucide-react"
 import { motion } from "motion/react"
 import { Dithering } from "@paper-design/shaders-react"
 import { FullscreenOverlayBase } from "@craft-agent/ui"
 import { cn } from "@/lib/utils"
+import { isWindows, isWebUI } from "@/lib/platform"
 import { overlayTransitionIn } from "@/lib/animations"
 import { AddWorkspaceStep_Choice } from "./AddWorkspaceStep_Choice"
 import { AddWorkspaceStep_CreateNew } from "./AddWorkspaceStep_CreateNew"
@@ -191,7 +192,14 @@ export function WorkspaceCreationScreen({
         </motion.div>
 
         {/* Header with drag region and close button */}
-        <header className="titlebar-drag-region relative h-[50px] shrink-0 flex items-center justify-end px-6">
+        <header
+          className={cn(
+            "titlebar-drag-region relative shrink-0 flex items-center",
+            isWindows && !isWebUI
+              ? "h-11 justify-start pl-3 pr-[148px]"
+              : "h-[50px] justify-end px-6"
+          )}
+        >
           {/* Close button - explicitly no-drag */}
           <motion.button
             initial={{ opacity: 0 }}
@@ -203,16 +211,26 @@ export function WorkspaceCreationScreen({
             }}
             disabled={isCreating}
             className={cn(
-              "titlebar-no-drag flex items-center justify-center p-2 rounded-[6px]",
+              "titlebar-no-drag inline-flex items-center justify-center rounded-[6px]",
               "bg-background shadow-minimal hover:bg-foreground-5",
               "text-muted-foreground hover:text-foreground",
               "transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              "mr-[-8px] mt-2",
+              isWindows && !isWebUI
+                ? "h-[28px] gap-1.5 px-2.5 text-[13px] font-medium"
+                : "p-2 mr-[-8px] mt-2",
               isCreating && "opacity-50 cursor-not-allowed"
             )}
-            aria-label={t('common.close')}
+            title={t('common.closeEsc')}
+            aria-label={t('common.closeEsc')}
           >
-            <X className="h-4 w-4" />
+            {isWindows && !isWebUI ? (
+              <>
+                <ArrowLeft className="h-3.5 w-3.5" />
+                <span>{t('common.back')}</span>
+              </>
+            ) : (
+              <X className="h-4 w-4" />
+            )}
           </motion.button>
         </header>
 

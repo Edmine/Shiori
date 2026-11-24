@@ -45,7 +45,11 @@ if (process.argv.includes('--generate-token')) {
 import type { WsRpcTlsOptions } from '@craft-agent/server-core/transport'
 import { registerCoreRpcHandlers, cleanupRpcClientResources } from '@craft-agent/server-core/handlers/rpc'
 import { SessionManager, setSessionPlatform, setSessionRuntimeHooks } from '@craft-agent/server-core/sessions'
-import { initModelRefreshService, setFetcherPlatform } from '@craft-agent/server-core/model-fetchers'
+import {
+  initModelRefreshService,
+  setFetcherPlatform,
+  createDefaultModelFetcherCredentialResolver,
+} from '@craft-agent/server-core/model-fetchers'
 import { setSearchPlatform, setImageProcessor } from '@craft-agent/server-core/services'
 import type { HandlerDeps } from '@craft-agent/server-core/handlers'
 
@@ -191,19 +195,7 @@ const instance = await (async () => {
         setSearchPlatform(platform)
         setImageProcessor(platform.imageProcessor)
       },
-      initModelRefreshService: () => initModelRefreshService(async (slug: string) => {
-        const manager = getCredentialManager()
-        const [apiKey, oauth] = await Promise.all([
-          manager.getLlmApiKey(slug).catch(() => null),
-          manager.getLlmOAuth(slug).catch(() => null),
-        ])
-        return {
-          apiKey: apiKey ?? undefined,
-          oauthAccessToken: oauth?.accessToken,
-          oauthRefreshToken: oauth?.refreshToken,
-          oauthIdToken: oauth?.idToken,
-        }
-      }),
+      initModelRefreshService: () => initModelRefreshService(createDefaultModelFetcherCredentialResolver()),
       createSessionManager: () => new SessionManager(),
       bindRpcServer: (sm, server) => sm.setRpcServer(server),
       createHandlerDeps: ({ sessionManager, platform, oauthFlowStore }) => {

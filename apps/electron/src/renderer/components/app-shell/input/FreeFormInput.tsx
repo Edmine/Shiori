@@ -68,6 +68,7 @@ import {
 import { WorkingDirectorySelector, formatPathForDisplay } from './WorkingDirectorySelector'
 import { CompactPermissionModeSelector } from './CompactPermissionModeSelector'
 import { CompactModelSelector } from './CompactModelSelector'
+import { CreativeLensChip } from './CreativeLensChip'
 import {
   groupConnectionsByProvider,
   stripPiPrefixForDisplay,
@@ -1812,6 +1813,13 @@ export function FreeFormInput({
               onToggle={handleCodingModeToggle}
               onContinueInNewSession={onContinueWithCodingMode}
               workspaceSetup={codingWorkspaceSetup}
+            />
+          )}
+
+          {!codingMode && (
+            <CreativeLensChip
+              disabled={disabled}
+              compact={compactMode}
             />
           )}
           </div>

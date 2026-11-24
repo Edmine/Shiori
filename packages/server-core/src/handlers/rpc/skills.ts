@@ -8,6 +8,7 @@ import type { HandlerDeps } from '../handler-deps'
 export const HANDLED_CHANNELS = [
   RPC_CHANNELS.skills.GET,
   RPC_CHANNELS.skills.GET_FILES,
+  RPC_CHANNELS.skills.CREATE,
   RPC_CHANNELS.skills.DELETE,
   RPC_CHANNELS.skills.OPEN_EDITOR,
   RPC_CHANNELS.skills.OPEN_FINDER,
@@ -81,6 +82,20 @@ export function registerSkillsHandlers(server: RpcServer, deps: HandlerDeps): vo
 
     return scanDirectory(skillDir)
   })
+
+  // Create a new skill in a workspace
+  server.handle(
+    RPC_CHANNELS.skills.CREATE,
+    async (_ctx, workspaceId: string, input: import('@craft-agent/shared/skills').CreateSkillInput) => {
+      const workspace = getWorkspaceByNameOrId(workspaceId)
+      if (!workspace) throw new Error('Workspace not found')
+
+      const { createSkill } = await import('@craft-agent/shared/skills')
+      const skill = createSkill(workspace.rootPath, input)
+      deps.platform.logger?.info(`Created skill: ${skill.slug}`)
+      return skill
+    }
+  )
 
   // Delete a skill from a workspace
   server.handle(RPC_CHANNELS.skills.DELETE, async (_ctx, workspaceId: string, skillSlug: string) => {

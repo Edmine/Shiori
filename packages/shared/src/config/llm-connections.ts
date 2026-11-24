@@ -93,8 +93,9 @@ export type LlmAuthType =
  * Ownership mode for a connection's model list.
  * - automaticallySyncedFromProvider: provider defaults are synced automatically.
  * - userDefined3Tier: user-picked Best/Balanced/Fast list is preserved.
+ * - custom: user-customized model list and per-model settings are preserved verbatim.
  */
-export type ModelSelectionMode = 'automaticallySyncedFromProvider' | 'userDefined3Tier';
+export type ModelSelectionMode = 'automaticallySyncedFromProvider' | 'userDefined3Tier' | 'custom';
 
 /**
  * Protocol for custom API endpoints.
@@ -656,8 +657,8 @@ export const PI_PREFERRED_DEFAULTS: Record<string, string[]> = {
   // GPT-6 Astra entered the Pi catalog in SDK 0.85.1 for both the API-key and
   // the ChatGPT-account (openai-codex) flows; new connections default to it.
   // GPT-6.1 Sol (Pi 0.99.1) follows it.
-  openai: ['gpt-6-astra', 'gpt-6.1-sol', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.5', 'gpt-5.2', 'gpt-5.1', 'gpt-5', 'o4-mini', 'o3', 'gpt-4o'],
-  'openai-codex': ['gpt-6-astra', 'gpt-6.1-sol', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.5', 'gpt-5.2', 'gpt-5.1', 'gpt-5', 'o4-mini', 'o3', 'gpt-4o'],
+  openai: ['gpt-6.2-astra', 'gpt-6.2-sol', 'gpt-6-astra', 'gpt-6.1-sol', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.5', 'gpt-5.2', 'gpt-5.1', 'gpt-5', 'o4-mini', 'o3', 'gpt-4o'],
+  'openai-codex': ['gpt-6.2-astra', 'gpt-6.2-sol', 'gpt-6-astra', 'gpt-6.1-sol', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.5', 'gpt-5.2', 'gpt-5.1', 'gpt-5', 'o4-mini', 'o3', 'gpt-4o'],
   // Stable models first so the connection-setup test (which uses
   // getDefaultModelForConnection) lands on a reliable model.
   // gemini-3-pro-preview and gemini-3.1-pro-preview are intermittently

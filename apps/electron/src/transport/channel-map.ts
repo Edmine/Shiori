@@ -165,6 +165,12 @@ export const CHANNEL_MAP = {
   getServerConfig: invoke(RPC_CHANNELS.settings.GET_SERVER_CONFIG),
   setServerConfig: invoke(RPC_CHANNELS.settings.SET_SERVER_CONFIG),
   getServerStatus: invoke(RPC_CHANNELS.settings.GET_SERVER_STATUS),
+  getRelayStatus: invoke(RPC_CHANNELS.settings.GET_RELAY_STATUS),
+  setRelayConfig: invoke(RPC_CHANNELS.settings.SET_RELAY_CONFIG),
+  rotateRelayKeys: invoke(RPC_CHANNELS.settings.ROTATE_RELAY_KEYS),
+  cfVerifyToken: invoke(RPC_CHANNELS.settings.CF_VERIFY_TOKEN),
+  cfDeployRelay: invoke(RPC_CHANNELS.settings.CF_DEPLOY_RELAY),
+  cfDeleteRelay: invoke(RPC_CHANNELS.settings.CF_DELETE_RELAY),
 
   // Settings - API Setup
   setupLlmConnection: invoke(RPC_CHANNELS.settings.SETUP_LLM_CONNECTION),
@@ -245,6 +251,7 @@ export const CHANNEL_MAP = {
   // Skills
   getSkills: invoke(RPC_CHANNELS.skills.GET),
   getSkillFiles: invoke(RPC_CHANNELS.skills.GET_FILES),
+  createSkill: invoke(RPC_CHANNELS.skills.CREATE),
   deleteSkill: invoke(RPC_CHANNELS.skills.DELETE),
   openSkillInEditor: invoke(RPC_CHANNELS.skills.OPEN_EDITOR),
   openSkillInFinder: invoke(RPC_CHANNELS.skills.OPEN_FINDER),
@@ -411,6 +418,7 @@ export const CHANNEL_MAP = {
   testLlmConnection: invoke(RPC_CHANNELS.llmConnections.TEST),
   setDefaultLlmConnection: invoke(RPC_CHANNELS.llmConnections.SET_DEFAULT),
   setWorkspaceDefaultLlmConnection: invoke(RPC_CHANNELS.llmConnections.SET_WORKSPACE_DEFAULT),
+  refreshLlmConnectionModels: invoke(RPC_CHANNELS.llmConnections.REFRESH_MODELS),
 
   // Projects
   getProjects: invoke(RPC_CHANNELS.projects.GET),

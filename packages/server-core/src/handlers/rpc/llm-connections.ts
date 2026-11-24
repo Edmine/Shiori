@@ -403,22 +403,44 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
 
   server.handle(RPC_CHANNELS.pi.GET_PROVIDER_MODELS, async (_ctx, provider: string) => {
     const { getModels } = await import('@earendil-works/pi-ai/compat')
+    const { getSupplementalPiModels, toPiProviderId } = await import('@craft-agent/shared/config')
     try {
-      const models = getModels(provider as Parameters<typeof getModels>[0])
+      const models = getModels(toPiProviderId(provider) as Parameters<typeof getModels>[0])
       const sorted = [...models].sort((a, b) => b.cost.output - a.cost.output || b.cost.input - a.cost.input)
-      return {
-        models: sorted.map(m => ({
-          id: m.id.startsWith('pi/') ? m.id : `pi/${m.id}`,
+      const catalogEntries = sorted.map(m => ({
+        id: m.id.startsWith('pi/') ? m.id : `pi/${m.id}`,
+        name: m.name,
+        costInput: m.cost.input,
+        costOutput: m.cost.output,
+        contextWindow: m.contextWindow,
+        reasoning: m.reasoning,
+      }))
+      const existingIds = new Set(catalogEntries.map(m => m.id))
+      const supplemental = getSupplementalPiModels(provider)
+        .filter(m => !existingIds.has(m.id))
+        .map(m => ({
+          id: m.id,
           name: m.name,
-          costInput: m.cost.input,
-          costOutput: m.cost.output,
+          costInput: 0,
+          costOutput: 0,
           contextWindow: m.contextWindow,
-          reasoning: m.reasoning,
-        })),
-        totalCount: models.length,
+          reasoning: m.supportsThinking !== false,
+        }))
+      const merged = [...supplemental, ...catalogEntries]
+      return {
+        models: merged,
+        totalCount: merged.length,
       }
     } catch {
-      return { models: [], totalCount: 0 }
+      const supplemental = getSupplementalPiModels(provider).map(m => ({
+        id: m.id,
+        name: m.name,
+        costInput: 0,
+        costOutput: 0,
+        contextWindow: m.contextWindow,
+        reasoning: m.supportsThinking !== false,
+      }))
+      return { models: supplemental, totalCount: supplemental.length }
     }
   })
 
@@ -520,6 +542,25 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       if (success) {
         // Stop any periodic model refresh timer for this connection
         getModelRefreshService().stopConnection(slug)
+        // Best-effort remote revocation for OpenAI Sign in with ChatGPT OAuth connections
+        if (
+          connection.authType === 'oauth' &&
+          (connection.piAuthProvider === 'openai' || connection.piAuthProvider === 'openai-codex')
+        ) {
+          try {
+            const credentialManager = getCredentialManager()
+            const storedOAuth = await credentialManager.getLlmOAuth(slug)
+            if (storedOAuth?.refreshToken || storedOAuth?.accessToken) {
+              const { revokeChatGptTokens } = await import('@craft-agent/shared/auth')
+              await revokeChatGptTokens({
+                refreshToken: storedOAuth.refreshToken,
+                accessToken: storedOAuth.accessToken,
+              })
+            }
+          } catch (revokeError) {
+            deps.platform.logger?.warn(`[ChatGPT OAuth] Remote token revocation failed while deleting ${slug}:`, revokeError)
+          }
+        }
         // Also delete associated credentials
         await deleteConnectionCredentials(getCredentialManager(), connection, wasDefault)
         deps.platform.logger?.info(`LLM connection deleted: ${slug}`)
@@ -641,7 +682,9 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
   interface PendingChatGptFlow {
     flowId: string
     state: string
+    nonce: string
     codeVerifier: string
+    redirectUri: string
     connectionSlug: string
     ownerClientId: string
     createdAt: number
@@ -659,7 +702,11 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
   }
 
   // chatgpt:startOAuth — prepare PKCE + auth URL, store flow, return to client
-  server.handle(RPC_CHANNELS.chatgpt.START_OAUTH, async (ctx, connectionSlug: string): Promise<{
+  server.handle(RPC_CHANNELS.chatgpt.START_OAUTH, async (
+    ctx,
+    connectionSlug: string,
+    options?: { redirectUri?: string },
+  ): Promise<{
     authUrl: string
     state: string
     flowId: string
@@ -667,13 +714,15 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
     cleanupExpiredChatGptFlows()
     const { prepareChatGptOAuth } = await import('@craft-agent/shared/auth')
 
-    const prepared = prepareChatGptOAuth()
+    const prepared = await prepareChatGptOAuth({ redirectUri: options?.redirectUri })
     const flowId = randomUUID()
 
     pendingChatGptFlows.set(prepared.state, {
       flowId,
       state: prepared.state,
+      nonce: prepared.nonce,
       codeVerifier: prepared.codeVerifier,
+      redirectUri: prepared.redirectUri,
       connectionSlug,
       ownerClientId: ctx.clientId,
       createdAt: Date.now(),
@@ -688,8 +737,9 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
     flowId: string
     code: string
     state: string
+    clientId?: string
   }): Promise<{ success: boolean; error?: string }> => {
-    const { flowId, code, state } = args
+    const { flowId, code, state, clientId } = args
     const flow = pendingChatGptFlows.get(state)
 
     if (!flow) throw new Error('Unknown or expired ChatGPT OAuth flow')
@@ -704,7 +754,11 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       const { exchangeChatGptTokens } = await import('@craft-agent/shared/auth')
       const credentialManager = getCredentialManager()
 
-      const tokens = await exchangeChatGptTokens(code, flow.codeVerifier)
+      const tokens = await exchangeChatGptTokens(code, flow.codeVerifier, {
+        redirectUri: flow.redirectUri,
+        clientId,
+        expectedNonce: flow.nonce,
+      })
 
       await credentialManager.setLlmOAuth(flow.connectionSlug, {
         accessToken: tokens.accessToken,
@@ -767,10 +821,22 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
     }
   })
 
-  // Logout from ChatGPT (clear stored tokens)
+  // Logout from ChatGPT (revoke remote tokens best-effort + clear stored tokens)
   server.handle(RPC_CHANNELS.chatgpt.LOGOUT, async (_ctx, connectionSlug: string): Promise<{ success: boolean }> => {
     try {
       const credentialManager = getCredentialManager()
+      try {
+        const storedOAuth = await credentialManager.getLlmOAuth(connectionSlug)
+        if (storedOAuth?.refreshToken || storedOAuth?.accessToken) {
+          const { revokeChatGptTokens } = await import('@craft-agent/shared/auth')
+          await revokeChatGptTokens({
+            refreshToken: storedOAuth.refreshToken,
+            accessToken: storedOAuth.accessToken,
+          })
+        }
+      } catch (revokeError) {
+        deps.platform.logger?.warn('[ChatGPT OAuth] Remote token revocation failed during logout:', revokeError)
+      }
       await credentialManager.deleteLlmCredentials(connectionSlug)
       deps.platform.logger?.info('ChatGPT credentials cleared')
       return { success: true }

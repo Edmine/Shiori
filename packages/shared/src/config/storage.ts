@@ -1763,18 +1763,10 @@ function migrateCodexCopilotToPi(config: StoredConfig): boolean {
  * Ensures built-in connections (anthropic, openai) always have models populated,
  * not just compat connections.
  */
-export function shouldMigratePiOpenAiProvider(connection: Pick<LlmConnection, 'providerType' | 'piAuthProvider' | 'authType' | 'baseUrl'>): boolean {
-  // Legacy cleanup: old ChatGPT Plus OAuth connections may still be tagged as `openai`.
-  // Only migrate those to `openai-codex`.
-  //
-  // IMPORTANT: Do NOT migrate API-key or custom-endpoint connections:
-  // - `api_key` / `api_key_with_endpoint` with `openai` must remain regular OpenAI API auth.
-  // - forcing them to `openai-codex` routes requests to ChatGPT backend auth and breaks on restart.
-  if (!isPiProvider(connection.providerType)) return false;
-  if (connection.piAuthProvider !== 'openai') return false;
-  if (connection.authType !== 'oauth') return false;
-  if (typeof connection.baseUrl === 'string' && connection.baseUrl.trim().length > 0) return false;
-  return true;
+export function shouldMigratePiOpenAiProvider(_connection: Pick<LlmConnection, 'providerType' | 'piAuthProvider' | 'authType' | 'baseUrl'>): boolean {
+  // Official OpenAI Sign in with ChatGPT (SIWC) legitimately uses `pi` + `openai` + `oauth`
+  // targeting the standard https://api.openai.com/v1 Responses API, so do NOT rewrite it to `openai-codex`.
+  return false;
 }
 
 export function shouldRepairPiApiKeyCodexProvider(connection: Pick<LlmConnection, 'providerType' | 'piAuthProvider' | 'authType'>): boolean {
@@ -1837,6 +1829,11 @@ function backfillAllConnectionModels(config: StoredConfig): boolean {
     // before this function runs, so no bedrock-specific normalization needed here.
 
     if (isPiProvider(connection.providerType) && connection.piAuthProvider) {
+      // User-customized model lists (custom mode) are preserved verbatim across startups,
+      // including custom model IDs and per-model overrides (name, contextWindow, supportsThinking, supportsImages).
+      if (connection.modelSelectionMode === 'custom') {
+        // Skip provider catalog enforcement; empty-list / defaultModel guards below still apply.
+      } else {
       // Copilot models are always server-managed (GitHub policy controls which
       // models are enabled), so force automaticallySyncedFromProvider regardless
       // of what inferModelSelectionMode would compute from stale static SDK data.
@@ -1858,9 +1855,20 @@ function backfillAllConnectionModels(config: StoredConfig): boolean {
 
       if (mode === 'automaticallySyncedFromProvider') {
         const currentIds = normalizeModelIds(connection.models);
+        const isLiveSyncedProvider =
+          connection.piAuthProvider === 'github-copilot' ||
+          connection.piAuthProvider === 'openai' ||
+          connection.piAuthProvider === 'openai-codex';
         if (providerDefaultModelIds.length > 0 && !modelSetEquals(currentIds, providerDefaultModelIds)) {
-          connection.models = defaultModels;
-          changed = true;
+          const defaultIdSet = new Set(providerDefaultModelIds);
+          const hasLiveOnlyModels =
+            isLiveSyncedProvider &&
+            currentIds.length > 0 &&
+            currentIds.some(id => !defaultIdSet.has(id));
+          if (!hasLiveOnlyModels) {
+            connection.models = defaultModels;
+            changed = true;
+          }
         }
       } else {
         const currentIds = normalizeModelIds(connection.models);
@@ -1900,6 +1908,7 @@ function backfillAllConnectionModels(config: StoredConfig): boolean {
             changed = true;
           }
         }
+      }
       }
     }
 
@@ -3239,7 +3248,12 @@ export function ensureToolIcons(): void {
 // Server Mode Configuration
 // ============================================
 
-import { DEFAULT_SERVER_CONFIG, type ServerConfig } from './server-config.ts';
+import {
+  DEFAULT_RELAY_CONFIG,
+  DEFAULT_SERVER_CONFIG,
+  type RelayConfig,
+  type ServerConfig,
+} from './server-config.ts';
 import { randomUUID } from 'crypto';
 
 /**
@@ -3264,6 +3278,38 @@ export function setServerConfig(serverConfig: ServerConfig): void {
     serverConfig.token = randomUUID();
   }
 
-  config.serverConfig = serverConfig;
+  // Preserve existing relay config if the caller only updated LAN server settings
+  const mergedRelay = serverConfig.relay ?? config.serverConfig?.relay;
+  config.serverConfig = mergedRelay ? { ...serverConfig, relay: mergedRelay } : serverConfig;
   saveConfig(config);
+}
+
+/**
+ * Get Cloudflare Workers relay configuration.
+ */
+export function getRelayConfig(): RelayConfig {
+  const server = getServerConfig();
+  return { ...DEFAULT_RELAY_CONFIG, ...(server.relay ?? {}) };
+}
+
+/**
+ * Persist Cloudflare Workers relay configuration without clobbering LAN server settings.
+ */
+export function setRelayConfig(relayConfig: RelayConfig, fallbackServerToken?: string): ServerConfig {
+  const config = loadStoredConfig();
+  const current = config?.serverConfig ?? { ...DEFAULT_SERVER_CONFIG };
+  const token = current.token || fallbackServerToken || randomUUID();
+  const updated: ServerConfig = {
+    ...current,
+    token,
+    relay: {
+      ...DEFAULT_RELAY_CONFIG,
+      ...relayConfig,
+    },
+  };
+  if (config) {
+    config.serverConfig = updated;
+    saveConfig(config);
+  }
+  return updated;
 }

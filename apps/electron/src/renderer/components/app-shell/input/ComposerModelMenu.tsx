@@ -20,7 +20,7 @@ import { ConnectionIcon } from '@/components/icons/ConnectionIcon'
 import { ANTHROPIC_MODELS, getModelShortName, type ModelDefinition } from '@config/models'
 import { isCompatProvider, modelSupportsImages, type LlmConnectionWithStatus } from '@config/llm-connections'
 import { THINKING_LEVELS, getThinkingLevelNameKey, type ThinkingLevel } from '@craft-agent/shared/agent/thinking-levels'
-import { stripPiPrefixForDisplay } from './model-picker-helpers'
+import { getVisibleModelDescription, stripPiPrefixForDisplay } from './model-picker-helpers'
 import type { PickerMode } from './picker-mode'
 import type { ToggleModelVision } from './useModelVisionToggle'
 import type { getContextDisplay, getContextDisplayLabels } from './context-display'
@@ -157,7 +157,13 @@ export function ComposerModelMenu({
           {t('common.model')}
         </TooltipContent>
       </Tooltip>
-      <StyledDropdownMenuContent side="top" align="end" sideOffset={8} className="min-w-[260px]">
+      <StyledDropdownMenuContent
+        side="top"
+        align="end"
+        sideOffset={8}
+        collisionPadding={{ top: 56, bottom: 16, left: 16, right: 16 }}
+        className="min-w-[260px] [-webkit-app-region:no-drag]"
+      >
         {/* Connection unavailable message */}
         {pickerMode === 'unavailable' ? (
           <div className="flex flex-col items-center justify-center px-4 py-6 text-center whitespace-normal">
@@ -230,7 +236,10 @@ export function ComposerModelMenu({
                       </div>
                     </StyledDropdownMenuSubTrigger>
                     {isAuthenticated && (
-                      <StyledDropdownMenuSubContent className="min-w-[220px]">
+                      <StyledDropdownMenuSubContent
+                        collisionPadding={{ top: 56, bottom: 16, left: 16, right: 16 }}
+                        className="min-w-[220px] max-h-[min(400px,calc(100vh-140px))] overflow-y-auto [-webkit-app-region:no-drag]"
+                      >
                         {/* Show models for this connection - use provider-specific models as fallback */}
                         {(conn.models || ANTHROPIC_MODELS).map((model) => {
                           const modelId = typeof model === 'string' ? model : model.id
@@ -291,14 +300,14 @@ export function ComposerModelMenu({
               </>
             )}
             {/* Model options based on effective connection's provider type */}
+            <div className="max-h-[340px] overflow-y-auto">
             {availableModels.map((model) => {
               const modelId = typeof model === 'string' ? model : model.id
               const modelName = typeof model === 'string'
                 ? stripPiPrefixForDisplay(getModelShortName(model))
                 : (model.name ?? stripPiPrefixForDisplay(model.id))
               const isSelected = currentModel === modelId
-              const descriptionKey = typeof model !== 'string' && 'descriptionKey' in model ? (model.descriptionKey as string) : undefined
-              const description = descriptionKey ? t(descriptionKey) : (typeof model !== 'string' && 'description' in model ? (model.description as string) : '')
+              const description = getVisibleModelDescription(model, t)
               const showVisionToggle =
                 !!effectiveConnectionDetails && isCompatProvider(effectiveConnectionDetails.providerType)
               const visionOn = showVisionToggle && modelSupportsImages(effectiveConnectionDetails!, modelId)
@@ -328,6 +337,7 @@ export function ComposerModelMenu({
                 </StyledDropdownMenuItem>
               )
             })}
+            </div>
           </>
         )}
 

@@ -1,12 +1,21 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg width="24px" height="24px" viewBox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-    <title>favicon</title>
-    <defs>
-        <path d="M0,0 L24,0 L24,24 L0,24 L0,0 Z" id="path-1"></path>
-    </defs>
-    <g id="favicon" stroke="none" fill="none" xlink:href="#path-1" fill-rule="evenodd" stroke-width="1">
-        <g id="Group" transform="translate(3.4502, 3)" fill="#9570BE">
-            <path d="M3.17890888,3.6 L3.17890888,0 L16,0 L16,3.6 L3.17890888,3.6 Z M9.642,7.2 L9.64218223,10.8 L0,10.8 L0,3.6 L16,3.6 L16,7.2 L9.642,7.2 Z M3.17890888,18 L3.178,14.4 L0,14.4 L0,10.8 L16,10.8 L16,18 L3.17890888,18 Z" id="Combined-Shape" fill-rule="nonzero"></path>
-        </g>
-    </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="shiori-bg" x1="64" y1="24" x2="448" y2="488" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#24393C"/>
+      <stop offset="55%" stop-color="#18282A"/>
+      <stop offset="100%" stop-color="#101B1D"/>
+    </linearGradient>
+    <linearGradient id="shiori-paper" x1="158" y1="108" x2="354" y2="404" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FAF7F1"/>
+      <stop offset="100%" stop-color="#EAE3D5"/>
+    </linearGradient>
+    <linearGradient id="shiori-fold" x1="286" y1="108" x2="354" y2="178" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#75C8BE"/>
+      <stop offset="100%" stop-color="#439289"/>
+    </linearGradient>
+  </defs>
+  <rect x="24" y="24" width="464" height="464" rx="112" fill="url(#shiori-bg)"/>
+  <rect x="25.5" y="25.5" width="461" height="461" rx="110.5" stroke="#FFFFFF" stroke-opacity="0.11" stroke-width="3"/>
+  <path d="M180 110H270V184C270 193.941 278.059 202 288 202H354V386C354 396.4 342.4 402.7 333.7 396.9L262.6 349.5C258.6 346.8 253.4 346.8 249.4 349.5L178.3 396.9C169.6 402.7 158 396.4 158 386V132C158 119.85 167.85 110 180 110Z" fill="url(#shiori-paper)"/>
+  <path d="M290 115C290 111.7 293.9 110 296.3 112.3L351.7 167.7C354 170.1 352.3 174 349 174H302C295.373 174 290 168.627 290 162V115Z" fill="url(#shiori-fold)"/>
 </svg>

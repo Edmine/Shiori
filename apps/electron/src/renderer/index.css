@@ -600,13 +600,6 @@ html.dark[data-scenic] .fullscreen-overlay-background {
     padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
   }
 
-  /* Top safe area: keep the navigator's first row clear of the iOS notch
-     when the app runs as a PWA / mobile webui. Desktop builds report 0px
-     for the inset so this is a no-op there. */
-  [data-panel-role="navigator"] {
-    padding-top: env(safe-area-inset-top, 0px);
-  }
-
   /* Workspace pill chevron: 12px is hard to read at narrow widths,
      bump to 16px so the dropdown affordance is clearly tappable. */
   [data-workspace-switcher="topbar"] [data-slot="chevron"] {
@@ -647,10 +640,6 @@ html[data-vibrancy="mica"] {
   background: var(--surface-navigator);
 }
 @media (max-width: 768px) {
-  :root {
-    --topbar-height: 56px;
-  }
-
   /* Bump TopBar icons from 18px → 20px in compact mode. Kept tight inside the
      36×36 button so it doesn't dominate the bar. */
   .header-icon-btn svg {
@@ -665,3 +654,72 @@ html[data-vibrancy="mica"] {
   min-height: 31px;
   padding: 6px 8px;
 }
+
+/* ==========================================================================
+   SHIORI EDITORIAL TYPOGRAPHY & CREATIVE LENS ATMOSPHERE
+   Activated via `data-creative-lens` on <html> (poetic | operatic | atelier | avant-garde).
+   Keeps coding/natural mode crisp while giving creative lenses book-like
+   typographic cadence and subtle atmospheric accent coupling.
+   ========================================================================== */
+:root {
+  --font-editorial-serif: "Source Serif 4", "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
+  --shiori-lens-accent: transparent;
+}
+
+html[data-creative-lens="poetic"] {
+  --shiori-lens-accent: #8b5e3c;
+}
+html.dark[data-creative-lens="poetic"] {
+  --shiori-lens-accent: #c99a72;
+}
+
+html[data-creative-lens="operatic"] {
+  --shiori-lens-accent: #9e2a2b;
+}
+html.dark[data-creative-lens="operatic"] {
+  --shiori-lens-accent: #d96b6c;
+}
+
+html[data-creative-lens="atelier"] {
+  --shiori-lens-accent: #3d5a80;
+}
+html.dark[data-creative-lens="atelier"] {
+  --shiori-lens-accent: #7fa2cc;
+}
+
+html[data-creative-lens="avant-garde"] {
+  --shiori-lens-accent: #6d4aff;
+}
+html.dark[data-creative-lens="avant-garde"] {
+  --shiori-lens-accent: #a28bff;
+}
+
+/* Editorial typography cadence when any creative lens is active */
+html[data-creative-lens]:not([data-creative-lens="natural"]) .prose :where(h1, h2, h3) {
+  font-family: var(--font-editorial-serif);
+  letter-spacing: -0.015em;
+  font-weight: 600;
+}
+
+html[data-creative-lens]:not([data-creative-lens="natural"]) .prose blockquote {
+  font-family: var(--font-editorial-serif);
+  font-style: normal;
+  border-left-width: 2px;
+  border-left-color: color-mix(in srgb, var(--shiori-lens-accent) 65%, var(--border));
+  padding-left: 1rem;
+}
+
+html[data-creative-lens]:not([data-creative-lens="natural"]) .prose hr {
+  border-color: color-mix(in srgb, var(--shiori-lens-accent) 25%, var(--border));
+}
+
+/* Subtle composer frame atmosphere glow when a creative lens is active */
+.shiori-lens-ring {
+  transition: box-shadow 260ms ease, border-color 260ms ease;
+}
+
+html[data-creative-lens]:not([data-creative-lens="natural"]) .shiori-lens-ring {
+  border-color: color-mix(in srgb, var(--shiori-lens-accent) 40%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--shiori-lens-accent) 18%, transparent);
+}
+

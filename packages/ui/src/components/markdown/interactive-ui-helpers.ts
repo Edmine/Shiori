@@ -451,11 +451,11 @@ export function buildInteractiveUiDocument(
   const headInject = buildBridgeHeadHtml(options.instanceId, options.theme)
   const trimmed = rawHtml.trim()
 
-  if (/<head[^>]*>/i.test(trimmed)) {
-    return trimmed.replace(/(<head[^>]*>)/i, `$1\n${headInject}\n`)
+  if (/<head(?:\s[^>]*)?>/i.test(trimmed)) {
+    return trimmed.replace(/(<head(?:\s[^>]*)?>)/i, `$1\n${headInject}\n`)
   }
-  if (/<html[^>]*>/i.test(trimmed)) {
-    return trimmed.replace(/(<html[^>]*>)/i, `$1\n<head>\n${headInject}\n</head>\n`)
+  if (/<html(?:\s[^>]*)?>/i.test(trimmed)) {
+    return trimmed.replace(/(<html(?:\s[^>]*)?>)/i, `$1\n<head>\n${headInject}\n</head>\n`)
   }
   return `<!DOCTYPE html>
 <html>
@@ -487,8 +487,8 @@ export function buildStandaloneExportHtml(
   :root {
     ${serializeCssVars(options.theme)}
   }
-  *, *::before, *::after { box-sizing: border-box; }
-  html, body {
+  :where(*, *::before, *::after) { box-sizing: border-box; }
+  :where(html, body) {
     margin: 0;
     padding: 0;
     background: var(--bg);
@@ -498,23 +498,22 @@ export function buildStandaloneExportHtml(
     line-height: 1.55;
     -webkit-font-smoothing: antialiased;
   }
-  body { max-width: 960px; margin: 0 auto; padding: 24px 20px; }
-  button, .btn {
+  :where(button, .btn) {
     font: inherit; font-size: 13px; font-weight: 500; color: var(--fg);
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 8px; padding: 6px 12px; cursor: pointer;
   }
-  button.primary, button[data-primary], .btn-primary {
+  :where(button.primary, button[data-primary], .btn-primary) {
     background: var(--accent); color: var(--accent-fg); border-color: transparent;
   }
-  input, select, textarea {
+  :where(input, select, textarea) {
     font: inherit; font-size: 13px; color: var(--fg); background: var(--surface);
     border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px;
   }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
-  th { font-weight: 600; color: var(--muted); background: var(--surface); }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  :where(table) { width: 100%; border-collapse: collapse; font-size: 13px; }
+  :where(th, td) { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+  :where(th) { font-weight: 600; color: var(--muted); background: var(--surface); }
+  :where(.card) { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
 </style>
 <script>
 window.shiori = window.shiori || {
@@ -526,11 +525,11 @@ window.shiori = window.shiori || {
 </script>`
 
   const trimmed = rawHtml.trim()
-  if (/<head[^>]*>/i.test(trimmed)) {
-    return trimmed.replace(/(<head[^>]*>)/i, `$1\n${headInject}\n`)
+  if (/<head(?:\s[^>]*)?>/i.test(trimmed)) {
+    return trimmed.replace(/(<head(?:\s[^>]*)?>)/i, `$1\n${headInject}\n`)
   }
-  if (/<html[^>]*>/i.test(trimmed)) {
-    return trimmed.replace(/(<html[^>]*>)/i, `$1\n<head>\n${headInject}\n</head>\n`)
+  if (/<html(?:\s[^>]*)?>/i.test(trimmed)) {
+    return trimmed.replace(/(<html(?:\s[^>]*)?>)/i, `$1\n<head>\n${headInject}\n</head>\n`)
   }
   return `<!DOCTYPE html>
 <html>

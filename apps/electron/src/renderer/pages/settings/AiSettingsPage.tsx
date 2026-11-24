@@ -14,7 +14,8 @@ import { useTranslation } from 'react-i18next'
 import { Button, IconButton } from '@/components/ui/button'
 import { HeaderMenu } from '@/components/ui/HeaderMenu'
 import { routes } from '@/lib/navigate'
-import { X, MoreHorizontal, Pencil, Trash2, Star, ChevronDown, ChevronRight, CheckCircle2, AlertTriangle, RefreshCcw, Settings2, MessageSquareMore, Zap, Clock, Check, Plus } from 'lucide-react'
+import { isWindows, isWebUI } from '@/lib/platform'
+import { ArrowLeft, X, MoreHorizontal, Pencil, Trash2, Star, ChevronDown, ChevronRight, CheckCircle2, AlertTriangle, RefreshCcw, Settings2, MessageSquareMore, Zap, Clock, Check, Plus, SlidersHorizontal } from 'lucide-react'
 import type { CredentialHealthStatus, CredentialHealthIssue } from '../../../shared/types'
 import { Spinner, FullscreenOverlayBase, Tooltip, TooltipTrigger, TooltipContent, AnimatedCollapsibleContent } from '@craft-agent/ui'
 import { useSetAtom } from 'jotai'
@@ -56,6 +57,7 @@ import { OnboardingWizard, type ApiSetupMethod } from '@/components/onboarding'
 import { RenameDialog } from '@/components/ui/rename-dialog'
 import { useAppShellContext, WORKSPACE_SETTINGS_CHANGED_EVENT } from '@/context/AppShellContext'
 import { RichTextInput, type RichTextInputHandle } from '@/components/ui/rich-text-input'
+import { isBoilerplateModelDescription } from '@/components/app-shell/input/model-picker-helpers'
 import { InlineMentionMenu, useInlineMention, type MentionItem } from '@/components/ui/mention-menu'
 import { MentionBadge } from '@/components/ui/mention-badge'
 import { findMentionMatches } from '@/lib/mentions'
@@ -65,6 +67,7 @@ import { getModelsForProviderType, resolveMidStreamBehavior, type CustomEndpoint
 import { toast } from 'sonner'
 import { Skeleton } from '@/components/ui/skeleton'
 import { loadAiSettings } from './ai-settings-loader'
+import { ConnectionModelsDialog } from './ConnectionModelsDialog'
 
 /** Checks with an outcome after which a feature that changed nothing is pointed out. */
 const DECISION_NO_CHANGE_MIN_CHECKS = 30
@@ -108,7 +111,8 @@ function getModelOptionsForConnection(
       }
       // ModelDefinition object
       const def = m as ModelDefinition
-      return { value: def.id, label: def.name, description: def.description, descriptionKey: def.descriptionKey }
+      const cleanDescription = isBoilerplateModelDescription(def.description) ? '' : def.description
+      return { value: def.id, label: def.name, description: cleanDescription, descriptionKey: def.descriptionKey }
     })
   }
 
@@ -117,7 +121,7 @@ function getModelOptionsForConnection(
   return registryModels.map((m) => ({
     value: m.id,
     label: m.name,
-    description: m.description,
+    description: isBoilerplateModelDescription(m.description) ? '' : m.description,
     descriptionKey: m.descriptionKey,
   }))
 }
@@ -225,6 +229,7 @@ interface ConnectionRowProps {
   onValidate: () => void
   onReauthenticate: () => void
   onEdit: () => void
+  onManageModels: () => void
   onSetMidStreamBehavior: (behavior: MidStreamBehavior) => void
   validationState: ValidationState
   validationError?: string
@@ -232,7 +237,7 @@ interface ConnectionRowProps {
   isDuplicateAccount?: boolean
 }
 
-function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, onSetDefault, onValidate, onReauthenticate, onEdit, onSetMidStreamBehavior, validationState, validationError, isDuplicateAccount }: ConnectionRowProps) {
+function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, onSetDefault, onValidate, onReauthenticate, onEdit, onManageModels, onSetMidStreamBehavior, validationState, validationError, isDuplicateAccount }: ConnectionRowProps) {
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
   const [piBaseUrl, setPiBaseUrl] = useState<string | undefined>(undefined)
@@ -320,6 +325,28 @@ function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, 
     ? [connection.oauthAccountEmail, connection.oauthOrganizationName].filter(Boolean).join(' · ')
     : null
 
+  const modelOptions = useMemo(() => getModelOptionsForConnection(connection), [connection])
+  const modelCount = modelOptions.length
+  const activeDefaultLabel = useMemo(() => {
+    if (!connection.defaultModel) return modelOptions[0]?.label
+    const found = modelOptions.find((m) => m.value === connection.defaultModel)
+    return found?.label ?? getModelShortName(connection.defaultModel)
+  }, [connection.defaultModel, modelOptions])
+
+  const descriptionText = useMemo(() => {
+    const base = getDescription()
+    if (validationState !== 'idle') return base
+    const summaryParts: string[] = [base]
+    if (modelCount > 0) {
+      summaryParts.push(
+        activeDefaultLabel
+          ? t('settings.ai.modelsSummaryWithDefault', { count: modelCount, model: activeDefaultLabel })
+          : t('settings.ai.modelsSummary', { count: modelCount }),
+      )
+    }
+    return summaryParts.filter(Boolean).join(' · ')
+  }, [getDescription, validationState, modelCount, activeDefaultLabel, t])
+
   return (
     <SettingsRow
       label={(
@@ -348,38 +375,52 @@ function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, 
           )}
         </div>
       )}
-      description={getDescription()}
+      description={descriptionText}
     >
-      <DropdownMenu modal={false} onOpenChange={setMenuOpen}>
-        <DropdownMenuTrigger asChild>
-          <IconButton
-            aria-label={t("common.more")}
-            data-state={menuOpen ? 'open' : 'closed'}
-            icon={<MoreHorizontal className="size-4" />}
-          />
-        </DropdownMenuTrigger>
-        <StyledDropdownMenuContent align="end">
-          <StyledDropdownMenuItem onClick={() => runAfterMenuClose(onRenameClick)}>
-            <Pencil className="h-3.5 w-3.5" />
-            <span>{t("common.rename")}</span>
-          </StyledDropdownMenuItem>
-          {!connection.isDefault && (
-            <StyledDropdownMenuItem onClick={onSetDefault}>
-              <Star className="h-3.5 w-3.5" />
-              <span>{t("settings.ai.setAsDefault")}</span>
+      <div className="flex items-center gap-1.5">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onManageModels}
+          className="h-7 gap-1.5 px-2.5 text-label-sm"
+        >
+          <SlidersHorizontal className="size-3.5" />
+          <span>{t("settings.ai.modelsButton", { count: modelCount })}</span>
+        </Button>
+        <DropdownMenu modal={false} onOpenChange={setMenuOpen}>
+          <DropdownMenuTrigger asChild>
+            <IconButton
+              aria-label={t("common.more")}
+              data-state={menuOpen ? 'open' : 'closed'}
+              icon={<MoreHorizontal className="size-4" />}
+            />
+          </DropdownMenuTrigger>
+          <StyledDropdownMenuContent align="end">
+            <StyledDropdownMenuItem onClick={() => runAfterMenuClose(onManageModels)}>
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <span>{t("settings.ai.manageModels")}</span>
             </StyledDropdownMenuItem>
-          )}
-          {connection.authType === 'oauth' ? (
-            <StyledDropdownMenuItem onClick={() => runAfterMenuClose(onReauthenticate)}>
-              <RefreshCcw className="h-3.5 w-3.5" />
-              <span>{t("settings.ai.reAuthenticate")}</span>
+            <StyledDropdownMenuItem onClick={() => runAfterMenuClose(onRenameClick)}>
+              <Pencil className="h-3.5 w-3.5" />
+              <span>{t("common.rename")}</span>
             </StyledDropdownMenuItem>
-          ) : (
-            <StyledDropdownMenuItem onClick={() => runAfterMenuClose(onEdit)}>
-              <Settings2 className="h-3.5 w-3.5" />
-              <span>{t("common.edit")}</span>
-            </StyledDropdownMenuItem>
-          )}
+            {!connection.isDefault && (
+              <StyledDropdownMenuItem onClick={onSetDefault}>
+                <Star className="h-3.5 w-3.5" />
+                <span>{t("settings.ai.setAsDefault")}</span>
+              </StyledDropdownMenuItem>
+            )}
+            {connection.authType === 'oauth' ? (
+              <StyledDropdownMenuItem onClick={() => runAfterMenuClose(onReauthenticate)}>
+                <RefreshCcw className="h-3.5 w-3.5" />
+                <span>{t("settings.ai.reAuthenticate")}</span>
+              </StyledDropdownMenuItem>
+            ) : (
+              <StyledDropdownMenuItem onClick={() => runAfterMenuClose(onEdit)}>
+                <Settings2 className="h-3.5 w-3.5" />
+                <span>{t("common.edit")}</span>
+              </StyledDropdownMenuItem>
+            )}
           <StyledDropdownMenuItem
             onClick={onValidate}
             disabled={validationState === 'validating'}
@@ -419,8 +460,9 @@ function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, 
             <Trash2 className="h-3.5 w-3.5" />
             <span>{t("common.delete")}</span>
           </StyledDropdownMenuItem>
-        </StyledDropdownMenuContent>
-      </DropdownMenu>
+          </StyledDropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </SettingsRow>
   )
 }
@@ -905,6 +947,7 @@ export default function AiSettingsPage() {
   const [rtkUpdateOpen, setRtkUpdateOpen] = useState(false)
   const [rtkRechecking, setRtkRechecking] = useState(false)
   const [rtkGain, setRtkGain] = useState<{ totalCommands: number; totalInput: number; totalOutput: number; totalSaved: number; avgSavingsPct: number; totalTimeMs: number; avgTimeMs: number } | null>(null)
+  const [claudePerfExpanded, setClaudePerfExpanded] = useState<boolean | null>(null)
 
   // Decision model (Jev / TypeSafe System One) — opt-in decision layer.
   // The card is always shown; everything behind it stays off until the user enables it.
@@ -938,6 +981,13 @@ export default function AiSettingsPage() {
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const [renamingConnection, setRenamingConnection] = useState<{ slug: string; name: string } | null>(null)
   const [renameValue, setRenameValue] = useState('')
+
+  // Manage models dialog state
+  const [managingModelsSlug, setManagingModelsSlug] = useState<string | null>(null)
+  const managingModelsConnection = useMemo(
+    () => (managingModelsSlug ? llmConnections.find((c) => c.slug === managingModelsSlug) ?? null : null),
+    [managingModelsSlug, llmConnections],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -1673,6 +1723,7 @@ export default function AiSettingsPage() {
                 onValidate={() => handleValidateConnection(conn.slug)}
                 onReauthenticate={() => handleReauthenticateConnection(conn)}
                 onEdit={() => handleEditConnection(conn)}
+                onManageModels={() => setManagingModelsSlug(conn.slug)}
                 onSetMidStreamBehavior={(behavior) => handleSetMidStreamBehavior(conn, behavior)}
                 validationState={validationStates[conn.slug]?.state || 'idle'}
                 validationError={validationStates[conn.slug]?.error}
@@ -1691,12 +1742,6 @@ export default function AiSettingsPage() {
       {/* Performance */}
       <SettingsSection title={t("settings.ai.performance")} description={t("settings.ai.performanceDesc")}>
         <SettingsCard>
-          <SettingsToggle
-            label={t("settings.ai.extendedContext")}
-            description={t("settings.ai.extendedContextDesc")}
-            checked={enable1MContext}
-            onCheckedChange={handleEnable1MContextChange}
-          />
           <SettingsMenuSelectRow
             label={t("settings.ai.compactWindow")}
             description={t("settings.ai.compactWindowDesc")}
@@ -1725,24 +1770,6 @@ export default function AiSettingsPage() {
               error={autoCompactError}
             />
           )}
-          <SettingsMenuSelectRow
-            label={t("settings.ai.subagentModel")}
-            description={t("settings.ai.subagentModelDesc")}
-            value={subagentModel ?? 'session'}
-            onValueChange={(value) => { void handleSubagentModelChange(value) }}
-            options={[
-              { value: 'session', label: t("settings.ai.subagentModelSession"), description: t("settings.ai.subagentModelSessionDesc") },
-              { value: 'sonnet', label: 'Sonnet', description: t("settings.ai.subagentModelSonnetDesc") },
-              { value: 'haiku', label: 'Haiku', description: t("settings.ai.subagentModelHaikuDesc") },
-            ]}
-            menuWidth={300}
-          />
-          <SettingsToggle
-            label={t("settings.ai.extendedPromptCache")}
-            description={t("settings.ai.extendedPromptCacheDesc")}
-            checked={extendedPromptCache}
-            onCheckedChange={handleExtendedPromptCacheChange}
-          />
           {rtkStatus?.installed ? (
             <>
               <SettingsToggle
@@ -1817,6 +1844,65 @@ export default function AiSettingsPage() {
               </Button>
             </SettingsRow>
           )}
+
+          {/* Anthropic / Claude API specific performance options — auto-collapsed unless Anthropic is configured */}
+          {(() => {
+            const hasAnthropicConn = llmConnections.some(
+              (c) => c.providerType === 'anthropic' || c.piAuthProvider === 'anthropic',
+            )
+            const isExpanded = claudePerfExpanded ?? hasAnthropicConn
+            return (
+              <div className="border-t border-hairline">
+                <button
+                  type="button"
+                  onClick={() => setClaudePerfExpanded(!isExpanded)}
+                  className="flex w-full items-center justify-between px-3.5 py-2.5 text-left transition-colors hover:bg-fill-hover"
+                >
+                  <div className="min-w-0">
+                    <div className="text-label font-medium text-foreground">
+                      {t("settings.ai.claudeAdvancedTitle", "Claude API 专属优化")}
+                    </div>
+                    <div className="text-label-sm text-tertiary">
+                      {hasAnthropicConn
+                        ? t("settings.ai.claudeAdvancedDescActive", "扩展上下文、子代理降级模型与 1 小时提示缓存（适用于 Anthropic 直连）。")
+                        : t("settings.ai.claudeAdvancedDescInactive", "仅在使用 Anthropic 官方 API 连接时生效，当前未启用该类连接。")}
+                    </div>
+                  </div>
+                  <ChevronDown
+                    className={`ml-3 size-4 shrink-0 text-tertiary transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                {isExpanded && (
+                  <div className="border-t border-hairline">
+                    <SettingsToggle
+                      label={t("settings.ai.extendedContext")}
+                      description={t("settings.ai.extendedContextDesc")}
+                      checked={enable1MContext}
+                      onCheckedChange={handleEnable1MContextChange}
+                    />
+                    <SettingsMenuSelectRow
+                      label={t("settings.ai.subagentModel")}
+                      description={t("settings.ai.subagentModelDesc")}
+                      value={subagentModel ?? 'session'}
+                      onValueChange={(value) => { void handleSubagentModelChange(value) }}
+                      options={[
+                        { value: 'session', label: t("settings.ai.subagentModelSession"), description: t("settings.ai.subagentModelSessionDesc") },
+                        { value: 'sonnet', label: 'Sonnet', description: t("settings.ai.subagentModelSonnetDesc") },
+                        { value: 'haiku', label: 'Haiku', description: t("settings.ai.subagentModelHaikuDesc") },
+                      ]}
+                      menuWidth={300}
+                    />
+                    <SettingsToggle
+                      label={t("settings.ai.extendedPromptCache")}
+                      description={t("settings.ai.extendedPromptCacheDesc")}
+                      checked={extendedPromptCache}
+                      onCheckedChange={handleExtendedPromptCacheChange}
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </SettingsCard>
       </SettingsSection>
 
@@ -2031,21 +2117,40 @@ export default function AiSettingsPage() {
           editInitialValues={editInitialValues}
           className="h-full"
         />
-        <div
-          className="fixed top-0 right-0 h-[50px] flex items-center pr-5 [-webkit-app-region:no-drag]"
-          style={{ zIndex: 'var(--z-fullscreen, 350)' }}
-        >
-          <Button
-            variant="secondary"
-            size="icon"
-            onClick={handleCloseApiSetup}
-            title={t("common.closeEsc")}
-            aria-label={t("common.closeEsc")}
-            className="text-secondary hover:text-foreground"
+        {isWindows && !isWebUI ? (
+          <div
+            className="fixed top-0 left-0 h-11 flex items-center pl-3 [-webkit-app-region:no-drag]"
+            style={{ zIndex: 'var(--z-fullscreen, 350)' }}
           >
-            <X className="size-4" />
-          </Button>
-        </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleCloseApiSetup}
+              title={t("common.closeEsc")}
+              aria-label={t("common.closeEsc")}
+              className="h-7 gap-1.5 px-2.5 text-[13px] text-secondary hover:text-foreground"
+            >
+              <ArrowLeft className="size-3.5" />
+              <span>{t("common.back")}</span>
+            </Button>
+          </div>
+        ) : (
+          <div
+            className="fixed top-0 right-0 h-[50px] flex items-center pr-5 [-webkit-app-region:no-drag]"
+            style={{ zIndex: 'var(--z-fullscreen, 350)' }}
+          >
+            <Button
+              variant="secondary"
+              size="icon"
+              onClick={handleCloseApiSetup}
+              title={t("common.closeEsc")}
+              aria-label={t("common.closeEsc")}
+              className="text-secondary hover:text-foreground"
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+        )}
       </FullscreenOverlayBase>
 
       {/* Rename Connection Dialog */}
@@ -2057,6 +2162,16 @@ export default function AiSettingsPage() {
         onValueChange={setRenameValue}
         onSubmit={handleRenameSubmit}
         placeholder={t("settings.ai.enterConnectionName")}
+      />
+
+      {/* Manage Connection Models Dialog */}
+      <ConnectionModelsDialog
+        open={!!managingModelsConnection}
+        onOpenChange={(open) => {
+          if (!open) setManagingModelsSlug(null)
+        }}
+        connection={managingModelsConnection}
+        onSaved={refreshLlmConnections}
       />
     </SettingsPage>
   )

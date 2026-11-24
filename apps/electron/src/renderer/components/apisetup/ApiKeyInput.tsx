@@ -227,6 +227,7 @@ export function ApiKeyInput({
   const [openTier, setOpenTier] = useState<string | null>(null)
   const [tierFilter, setTierFilter] = useState('')
   const [tierDropdownPosition, setTierDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [showAdvancedTiers, setShowAdvancedTiers] = useState(false)
   const tierFilterInputRef = useRef<HTMLInputElement>(null)
   const hydratedTierProviderRef = useRef<string | null>(null)
 
@@ -244,7 +245,7 @@ export function ApiKeyInput({
     ?? (providerType === 'google' ? 'AIza...'
     : providerType === 'pi' ? 'pi-...'
     : providerType === 'openai' ? 'sk-...'
-    : 'Paste your key here...')
+    : t("apiSetup.pasteKeyPlaceholder", "粘贴你的 API 密钥..."))
 
   // Fetch Pi SDK models when a provider is selected in pi_api_key flow.
   // Returns all models sorted by cost (expensive-first) for the searchable tier dropdowns.
@@ -434,17 +435,88 @@ export function ApiKeyInput({
   }
 
   const tierConfigs = [
-    { label: 'Best', desc: 'most capable', value: bestModel, onChange: setBestModel },
-    { label: 'Balanced', desc: 'good for everyday use', value: defaultModel, onChange: setDefaultModel },
-    { label: 'Fast', desc: 'summarization & utility', value: cheapModel, onChange: setCheapModel },
+    { key: 'best', label: t("apiSetup.tierBest", "最强"), desc: t("apiSetup.tierBestDesc", "复杂推理与核心任务"), value: bestModel, onChange: setBestModel },
+    { key: 'balanced', label: t("apiSetup.tierBalanced", "均衡"), desc: t("apiSetup.tierBalancedDesc", "日常默认使用"), value: defaultModel, onChange: setDefaultModel },
+    { key: 'fast', label: t("apiSetup.tierFast", "快速"), desc: t("apiSetup.tierFastDesc", "摘要与轻量辅助"), value: cheapModel, onChange: setCheapModel },
   ]
-  const activeTierConfig = openTier ? tierConfigs.find(t => t.label === openTier) : null
+  const activeTierConfig = openTier ? tierConfigs.find(cfg => cfg.key === openTier) : null
+
+  const QUICK_PRESET_KEYS = new Set<PresetKey>(['anthropic', 'openai', 'google', 'deepseek', 'openrouter', 'custom'])
+  const quickPresets = presets.filter(p => QUICK_PRESET_KEYS.has(p.key))
+  const morePresets = presets.filter(p => !QUICK_PRESET_KEYS.has(p.key))
+  const activeMorePreset = morePresets.find(p => p.key === activePreset)
+  const getPresetDisplayLabel = (preset: Preset) =>
+    preset.key === 'custom'
+      ? t("apiSetup.customEndpointPreset", "自定义 / 中转")
+      : preset.key === 'google'
+        ? 'Google'
+        : preset.label
 
   return (
-    <form id={formId} onSubmit={handleSubmit} className="space-y-6">
+    <form id={formId} onSubmit={handleSubmit} className="space-y-5">
+      {/* Provider Quick Picker + More Dropdown — shown first so users know which key to paste */}
+      {presets.length > 1 && (
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between">
+            <Label>{t("apiSetup.provider", "服务商")}</Label>
+            {morePresets.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  disabled={isDisabled}
+                  className={cn(
+                    "motion-press flex h-control-sm items-center gap-1 rounded-full pl-2.5 pr-2 text-label-sm font-medium ring-1 ring-inset transition-colors",
+                    activeMorePreset
+                      ? "bg-accent-tint text-accent ring-accent/30"
+                      : "text-secondary ring-border hover:bg-fill-hover hover:text-foreground data-[state=open]:bg-fill-hover data-[state=open]:text-foreground",
+                  )}
+                >
+                  {activeMorePreset ? activeMorePreset.label : t("apiSetup.moreProviders", "更多服务商")}
+                  <ChevronDown className="size-2.5 text-tertiary" />
+                </DropdownMenuTrigger>
+                <StyledDropdownMenuContent align="end" className="z-floating-menu max-h-[280px] overflow-y-auto">
+                  {morePresets.map((preset) => (
+                    <StyledDropdownMenuItem
+                      key={preset.key}
+                      onClick={() => handlePresetSelect(preset)}
+                      className="justify-between"
+                    >
+                      {preset.label}
+                      <Check className={cn("size-3", activePreset === preset.key ? "opacity-100" : "opacity-0")} />
+                    </StyledDropdownMenuItem>
+                  ))}
+                </StyledDropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+          {quickPresets.length > 0 && (
+            <div className="grid grid-cols-3 gap-1.5">
+              {quickPresets.map((preset) => {
+                const isSelected = activePreset === preset.key
+                return (
+                  <button
+                    key={preset.key}
+                    type="button"
+                    disabled={isDisabled}
+                    onClick={() => handlePresetSelect(preset)}
+                    className={cn(
+                      "motion-press flex h-8 items-center justify-center rounded-md px-2 text-label-sm font-medium transition-colors",
+                      isSelected
+                        ? "bg-accent-tint text-accent ring-1 ring-inset ring-accent/40"
+                        : "bg-fill-hover/60 text-secondary ring-1 ring-inset ring-border hover:bg-fill-hover hover:text-foreground",
+                    )}
+                  >
+                    <span className="truncate">{getPresetDisplayLabel(preset)}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* API Key — hidden for Bedrock (uses IAM/Environment auth) */}
       {!isBedrock && (<div className="space-y-2">
-        <Label htmlFor="api-key">API Key</Label>
+        <Label htmlFor="api-key">{t("apiSetup.apiKey", "API 密钥")}</Label>
         <div className={cn(
           "field-surface relative rounded-md"
         )}>
@@ -477,35 +549,10 @@ export function ApiKeyInput({
         </div>
       </div>)}
 
-      {/* Endpoint/Provider Preset Selector - hidden when only one preset (e.g. Codex/OpenAI direct) */}
-      {presets.length > 1 && (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="base-url">Endpoint</Label>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              disabled={isDisabled}
-              className="motion-press flex h-control-sm items-center gap-1 rounded-full pl-2.5 pr-2 text-label-sm font-medium text-secondary ring-1 ring-inset ring-border hover:bg-fill-hover hover:text-foreground data-[state=open]:bg-fill-hover data-[state=open]:text-foreground"
-            >
-              {presets.find(p => p.key === activePreset)?.label}
-              <ChevronDown className="size-2.5 text-tertiary" />
-            </DropdownMenuTrigger>
-            <StyledDropdownMenuContent align="end" className="z-floating-menu">
-              {presets.map((preset) => (
-                <StyledDropdownMenuItem
-                  key={preset.key}
-                  onClick={() => handlePresetSelect(preset)}
-                  className="justify-between"
-                >
-                  {preset.label}
-                  <Check className={cn("size-3", activePreset === preset.key ? "opacity-100" : "opacity-0")} />
-                </StyledDropdownMenuItem>
-              ))}
-            </StyledDropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        {/* Base URL input - hidden for default provider presets (Anthropic/OpenAI) and Bedrock */}
-        {!isDefaultProviderPreset && !isBedrock && (
+      {/* Base URL input - only shown when a non-default / custom endpoint is selected */}
+      {presets.length > 1 && !isDefaultProviderPreset && !isBedrock && (
+        <div className="space-y-2">
+          <Label htmlFor="base-url">{t("apiSetup.baseUrl", "接口地址 (Base URL)")}</Label>
           <div className={cn(
             "field-surface rounded-md"
           )}>
@@ -519,22 +566,21 @@ export function ApiKeyInput({
               disabled={isDisabled}
             />
           </div>
-        )}
-      </div>
+        </div>
       )}
 
       {/* Protocol Toggle — visible as soon as Custom preset is selected */}
       {activePreset === 'custom' && !isDefaultProviderPreset && (
         <div className="space-y-2">
-          <Label>Protocol</Label>
+          <Label>{t("apiSetup.protocol", "接口协议")}</Label>
           <div className={cn(
             "flex gap-0.5 rounded-md bg-fill-hover p-0.5",
             "bg-foreground-2",
             isDisabled && "opacity-50 pointer-events-none"
           )}>
             {([
-              { value: 'openai-completions' as const, label: 'OpenAI Compatible' },
-              { value: 'anthropic-messages' as const, label: 'Anthropic Compatible' },
+              { value: 'openai-completions' as const, label: t("apiSetup.openaiCompat", "OpenAI 兼容") },
+              { value: 'anthropic-messages' as const, label: t("apiSetup.anthropicCompat", "Anthropic 兼容") },
             ]).map(({ value, label }) => (
               <button
                 key={value}
@@ -553,7 +599,7 @@ export function ApiKeyInput({
             ))}
           </div>
           <p className="text-label-sm text-tertiary">
-            Most third-party APIs (Ollama, vLLM, DashScope) use OpenAI Compatible.
+            {t("apiSetup.protocolHint", "大多数第三方中转与兼容服务（One-API、New-API、DashScope、vLLM 等）均使用 OpenAI 兼容协议。")}
           </p>
         </div>
       )}
@@ -686,16 +732,35 @@ export function ApiKeyInput({
 
       {/* Model Selection — 3 tier dropdowns for Pi providers, text input for custom/compat */}
       {hasPiModels ? (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {piModelsLoading ? (
-            <div className="flex items-center gap-2 py-3 text-tertiary">
+            <div className="flex items-center gap-2 py-2 text-tertiary">
               <Loader2 className="size-3.5 animate-spin" />
               <span className="text-xs">{t("apiSetup.loadingModels")}</span>
             </div>
           ) : (
             <>
-              {tierConfigs.map(({ label, desc, value }) => (
-                <div key={label} className="space-y-1.5">
+              <button
+                type="button"
+                onClick={() => setShowAdvancedTiers((prev) => !prev)}
+                className="flex w-full items-center justify-between rounded-md bg-fill-hover/60 px-3 py-2 text-left text-label-sm text-secondary ring-1 ring-inset ring-border hover:bg-fill-hover hover:text-foreground"
+              >
+                <span className="truncate">
+                  {t("apiSetup.autoSelectedModels", "已自动匹配默认模型")}：
+                  <span className="font-medium text-foreground">
+                    {piModels.find(m => m.id === bestModel)?.name ?? bestModel}
+                  </span>
+                </span>
+                <span className="ml-2 flex shrink-0 items-center gap-1 text-caption text-tertiary">
+                  {showAdvancedTiers
+                    ? t("apiSetup.hideAdvancedModels", "收起")
+                    : t("apiSetup.customizeModels", "自定义")}
+                  <ChevronDown className={cn("size-3 transition-transform", showAdvancedTiers && "rotate-180")} />
+                </span>
+              </button>
+
+              {showAdvancedTiers && tierConfigs.map(({ key, label, desc, value }) => (
+                <div key={key} className="space-y-1.5">
                   <Label className="text-label-sm font-normal text-secondary">
                     {label}{' '}
                     <span className="text-tertiary">· {desc}</span>
@@ -704,13 +769,13 @@ export function ApiKeyInput({
                     type="button"
                     disabled={isDisabled}
                     onClick={(e) => {
-                      if (openTier === label) {
+                      if (openTier === key) {
                         setOpenTier(null)
                         setTierFilter('')
                       } else {
                         const rect = e.currentTarget.getBoundingClientRect()
                         setTierDropdownPosition({ top: rect.bottom + 4, left: rect.left, width: rect.width })
-                        setOpenTier(label)
+                        setOpenTier(key)
                         setTierFilter('')
                         setTimeout(() => tierFilterInputRef.current?.focus(), 0)
                       }
@@ -721,7 +786,7 @@ export function ApiKeyInput({
                     )}
                   >
                     <span className="truncate text-foreground">
-                      {piModels.find(m => m.id === value)?.name ?? 'Select model...'}
+                      {piModels.find(m => m.id === value)?.name ?? t("apiSetup.selectModel", "选择模型...")}
                     </span>
                     <ChevronDown className="size-3 shrink-0 text-tertiary" />
                   </button>
@@ -795,9 +860,9 @@ export function ApiKeyInput({
       ) : !isDefaultProviderPreset && (
         <div className="space-y-2">
           <Label htmlFor="connection-default-model" className="font-normal text-secondary">
-            Default Model{' '}
+            {t("apiSetup.defaultModel", "默认模型")}{' '}
             <span className="text-tertiary">
-              · {!isBedrock && baseUrl.trim() ? 'required' : 'optional'}
+              · {!isBedrock && baseUrl.trim() ? t("common.required", "必填") : t("common.optional", "可选")}
             </span>
           </Label>
           <div className={cn(
@@ -812,7 +877,7 @@ export function ApiKeyInput({
                 setConnectionDefaultModel(e.target.value)
                 setModelError(null)
               }}
-              placeholder="e.g. claude-opus-5-5, claude-opus-4-8, claude-sonnet-5, claude-haiku-4-5"
+              placeholder={t("apiSetup.defaultModelPlaceholder", "例如 gpt-5.2, claude-sonnet-4-5")}
               className="border-0 bg-transparent shadow-none"
               disabled={isDisabled}
             />
@@ -821,13 +886,8 @@ export function ApiKeyInput({
             <p className="text-xs text-destructive">{modelError}</p>
           )}
           <p className="text-label-sm text-tertiary">
-            Comma-separated list. The first model is the default. The last is used for summarization.
+            {t("apiSetup.defaultModelHint", "可填单个模型 ID，或用英文逗号分隔多个模型（首个为默认模型，末尾用于标题摘要）。")}
           </p>
-          {(activePreset === 'custom' || !activePreset) && (
-            <p className="text-label-sm text-tertiary">
-              Required for custom endpoints. Use the provider-specific model ID.
-            </p>
-          )}
         </div>
       )}
 

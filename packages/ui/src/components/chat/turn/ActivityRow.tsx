@@ -92,7 +92,8 @@ export function ActivityRow({
   if (activity.type === 'intermediate') {
     const isThinking = activity.status === 'running'
     const isComplete = activity.status === 'completed'
-    const displayContent = isThinking ? t('chat.processing.thinking') : stripMarkdown(activity.content || '')
+    const stripped = stripMarkdown(activity.content || '')
+    const displayContent = isThinking ? (stripped || t('chat.processing.thinking')) : stripped
     return (
       <RowShell
         depth={depth}

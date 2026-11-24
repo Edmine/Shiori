@@ -49,12 +49,6 @@ export function ProviderSelectStep({ onSelect, onSkip }: ProviderSelectStepProps
 
   const PROVIDER_OPTIONS: ProviderOption[] = [
     {
-      id: 'claude',
-      name: t("onboarding.providerSelect.claudeProMax"),
-      description: t("onboarding.providerSelect.claudeProMaxDesc"),
-      icon: PROVIDER_ICONS.claude,
-    },
-    {
       id: 'chatgpt',
       name: t("onboarding.providerSelect.codexChatGPT"),
       description: t("onboarding.providerSelect.codexChatGPTDesc"),

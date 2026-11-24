@@ -25,6 +25,35 @@ export function stripPiPrefixForDisplay(value: string): string {
   return value.startsWith('pi/') ? value.slice(3) : value
 }
 
+const BOILERPLATE_MODEL_DESC_RE = /\bmodel via (?:Shiori|Craft Agents) Backend\b/i
+
+/**
+ * Returns true if a model description is an auto-generated backend boilerplate
+ * string (e.g. "openai model via Shiori Backend") that adds visual noise to
+ * model pickers.
+ */
+export function isBoilerplateModelDescription(description: string | undefined): boolean {
+  if (!description) return true
+  return BOILERPLATE_MODEL_DESC_RE.test(description.trim())
+}
+
+/**
+ * Resolve a model's human-meaningful subtitle for display in model pickers,
+ * suppressing repetitive auto-generated boilerplate strings.
+ */
+export function getVisibleModelDescription(
+  model: string | { description?: string; descriptionKey?: string },
+  t: (key: string) => string,
+): string {
+  if (typeof model === 'string') return ''
+  if (model.descriptionKey) {
+    return t(model.descriptionKey)
+  }
+  const raw = typeof model.description === 'string' ? model.description.trim() : ''
+  if (!raw || isBoilerplateModelDescription(raw)) return ''
+  return raw
+}
+
 export type ConnectionGroup = [groupName: string, connections: LlmConnection[]]
 
 /**

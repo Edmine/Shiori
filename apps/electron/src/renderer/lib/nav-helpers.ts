@@ -7,6 +7,8 @@
  */
 
 import type { NavigationState } from '../../shared/types'
+import { buildRouteFromNavigationState } from '../../shared/route-parser'
+import { routes, type Route } from './navigate'
 
 /**
  * Returns true when the focused panel's nav state is in "detail" mode —
@@ -36,5 +38,37 @@ export function isDetailNavState(navState: NavigationState | null): boolean {
       return navState.details !== null
     case 'pages':
       return true
+  }
+}
+
+/**
+ * Returns the parent list route to navigate to when tapping Back (`<`) in
+ * compact/mobile detail mode. Always moves one level up within the current
+ * navigator instead of closing the panel stack (which would fall back to the
+ * main Sessions list).
+ */
+export function getCompactParentRoute(navState: NavigationState | null): Route | null {
+  if (!navState) return null
+  switch (navState.navigator) {
+    case 'sessions':
+      if (!navState.details) return null
+      return buildRouteFromNavigationState({ ...navState, details: null }) as Route
+    case 'settings':
+      if (!navState.subpage) return null
+      return routes.view.settings()
+    case 'sources':
+      if (!navState.details) return null
+      return buildRouteFromNavigationState({ ...navState, details: null }) as Route
+    case 'skills':
+      if (!navState.details) return null
+      return routes.view.skills()
+    case 'automations':
+      if (!navState.details) return null
+      return buildRouteFromNavigationState({ ...navState, details: null }) as Route
+    case 'projects':
+      if (!navState.details) return null
+      return routes.view.projects()
+    case 'pages':
+      return navState.details ? routes.view.pages() : routes.view.allSessions()
   }
 }

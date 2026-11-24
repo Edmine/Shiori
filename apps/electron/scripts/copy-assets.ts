@@ -42,3 +42,13 @@ if (existsSync(piServerSrc)) {
 } else {
   console.log('⚠ pi-agent-server/dist/index.js not found — run electron:build:main first');
 }
+
+// Copy mobile/remote WebUI bundle so packaged Electron apps can serve it in server mode
+const webuiSrcDir = join('..', 'webui', 'dist');
+const webuiDestDir = join('dist', 'webui');
+if (existsSync(join(webuiSrcDir, 'index.html'))) {
+  cpSync(webuiSrcDir, webuiDestDir, { recursive: true });
+  console.log('✓ Copied apps/webui/dist → dist/webui/');
+} else {
+  console.log('⚠ apps/webui/dist not found — run webui build to bundle mobile remote access');
+}

@@ -394,15 +394,18 @@ async function runSourceOAuth(args: SourceOAuthArgs, signal: AbortSignal): Promi
   let state: string | undefined
 
   try {
-    // 1. Start callback server on ChatGPT's fixed port with /auth/callback path
+    // 1. Start loopback callback server on 127.0.0.1 with an ephemeral port (OpenAI SIWC requirement)
     callbackServer = await createCallbackServer({
       appType: 'electron',
+      host: CHATGPT_OAUTH_CONFIG.CALLBACK_HOST,
       port: CHATGPT_OAUTH_CONFIG.CALLBACK_PORT,
-      callbackPaths: ['/auth/callback'],
+      callbackPaths: [CHATGPT_OAUTH_CONFIG.CALLBACK_PATH],
     })
 
+    const redirectUri = `${callbackServer.url}${CHATGPT_OAUTH_CONFIG.CALLBACK_PATH}`
+
     // 2. Ask server to prepare the flow (PKCE, auth URL, store pending flow)
-    const startResult = await client.invoke('chatgpt:startOAuth', connectionSlug)
+    const startResult = await client.invoke('chatgpt:startOAuth', connectionSlug, { redirectUri })
     flowId = startResult.flowId
     state = startResult.state
 
@@ -426,7 +429,8 @@ async function runSourceOAuth(args: SourceOAuthArgs, signal: AbortSignal): Promi
     }
 
     // 6. Send code to server for token exchange + credential storage
-    const result = await client.invoke('chatgpt:completeOAuth', { flowId, code, state })
+    const issuedClientId = callback.query.client_id
+    const result = await client.invoke('chatgpt:completeOAuth', { flowId, code, state, clientId: issuedClientId })
     return { success: result.success, error: result.error }
   } catch (err) {
     if (state) {
@@ -446,6 +450,8 @@ async function runSourceOAuth(args: SourceOAuthArgs, signal: AbortSignal): Promi
 ;(api as ElectronAPI).removeWorkspace = (workspaceId: string) => ipcRenderer.invoke('workspace:remove', workspaceId)
 ;(api as ElectronAPI).getDefaultZoomLevel = () => ipcRenderer.invoke('zoom:getDefault')
 ;(api as ElectronAPI).setDefaultZoomLevel = (level: number) => ipcRenderer.invoke('zoom:setDefault', level)
+;(api as ElectronAPI).getCreativeLens = () => ipcRenderer.invoke('creativeLens:get')
+;(api as ElectronAPI).setCreativeLens = (lens: string) => ipcRenderer.invoke('creativeLens:set', lens)
 ;(api as ElectronAPI).invokeOnServer = (url: string, token: string, channel: string, ...args: any[]) =>
   ipcRenderer.invoke('server:invokeOnServer', url, token, channel, ...args)
 ;(api as ElectronAPI).transferSessionToWorkspace = (sessionId: string, targetWorkspaceId: string, sessionIndex?: number, sessionCount?: number) =>

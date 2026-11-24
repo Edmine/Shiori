@@ -193,6 +193,9 @@ export const UpdatePreferencesSchema = z.object({
   region: z.string().optional().describe("The user's state/region/province"),
   country: z.string().optional().describe("The user's country"),
   notes: z.string().optional().describe('Additional notes about the user that would be helpful to remember (preferences, context, etc.). Replaces any existing notes.'),
+  tasteAesthetics: z.string().optional().describe("The user's preferred aesthetic styles, eras, or sensibilities (e.g., classical literature, Washi minimalism, Viennese opera, Swiss typography)"),
+  tasteReferences: z.string().optional().describe("Favorite creators, artworks, films, or visual/literary references that reflect the user's taste"),
+  tasteAvoid: z.string().optional().describe("Aesthetic clichés or anti-patterns the user dislikes and wants to avoid"),
   includeCoAuthoredBy: z.boolean().optional().describe("Whether to include 'Co-Authored-By: Craft Agent' trailer on git commits. Defaults to true."),
 });
 

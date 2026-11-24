@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { resolvePiModel, isDeniedMiniModelId, isModelNotFoundError, isModelRejectionError } from './model-resolution.ts';
+import { resolvePiModel, resolvePiModelWithOverrides, isDeniedMiniModelId, isModelNotFoundError, isModelRejectionError } from './model-resolution.ts';
 
 /**
  * Minimal mock of PiModelRegistry.
@@ -290,5 +290,126 @@ describe('isModelRejectionError', () => {
   it('does not match unrelated errors at all', () => {
     expect(isModelRejectionError('rate limit exceeded for gpt-5.6-sol', 'gpt-5.6-sol')).toBe(false);
     expect(isModelRejectionError('', 'gpt-5.6-sol')).toBe(false);
+  });
+});
+
+describe('resolvePiModelWithOverrides', () => {
+  it('applies per-model overrides onto a built-in provider model', () => {
+    const registry = createMockRegistry({
+      openai: [{
+        id: 'gpt-6-astra',
+        name: 'GPT-6 Astra',
+        provider: 'openai',
+        contextWindow: 272000,
+        reasoning: true,
+        input: ['text', 'image'],
+      } as any],
+    });
+
+    const result = resolvePiModelWithOverrides(registry, 'pi/gpt-6-astra', 'openai', false, [
+      {
+        id: 'pi/gpt-6-astra',
+        name: 'My Astra',
+        contextWindow: 500000,
+        supportsImages: false,
+        supportsThinking: false,
+      },
+    ]);
+
+    expect(result).toBeDefined();
+    expect(result!.name).toBe('My Astra');
+    expect(result!.contextWindow).toBe(500000);
+    expect(result!.reasoning).toBe(false);
+    expect(result!.input).toEqual(['text']);
+  });
+
+  it('synthesizes a custom model ID for an authenticated provider using an existing template', () => {
+    const registry = createMockRegistry({
+      openai: [{
+        id: 'gpt-6-astra',
+        name: 'GPT-6 Astra',
+        provider: 'openai',
+        api: 'openai-responses',
+        baseUrl: 'https://api.openai.com/v1',
+        contextWindow: 272000,
+        reasoning: true,
+        input: ['text', 'image'],
+      } as any],
+    });
+
+    const result = resolvePiModelWithOverrides(registry, 'pi/gpt-6.2-sol', 'openai', false, [
+      {
+        id: 'pi/gpt-6.2-sol',
+        name: 'GPT-6.2 Sol',
+        contextWindow: 500000,
+        supportsImages: true,
+        supportsThinking: true,
+      },
+    ]);
+
+    expect(result).toBeDefined();
+    expect(result!.id).toBe('gpt-6.2-sol');
+    expect(result!.name).toBe('GPT-6.2 Sol');
+    expect(result!.provider).toBe('openai');
+    expect((result as any).api).toBe('openai-responses');
+    expect(result!.contextWindow).toBe(500000);
+    expect(result!.reasoning).toBe(true);
+    expect(result!.input).toEqual(['text', 'image']);
+  });
+
+  it('prefers a modern chat reasoning template over legacy gpt-4 or classifier entries when synthesizing', () => {
+    const registry = createMockRegistry({
+      openai: [
+        {
+          id: 'gpt-6-luna',
+          name: 'GPT-6 Luna Classifier',
+          provider: 'openai',
+          api: 'openai-decisions',
+          baseUrl: 'https://api.openai.com/v1',
+          contextWindow: 922000,
+        } as any,
+        {
+          id: 'gpt-4',
+          name: 'GPT-4',
+          provider: 'openai',
+          api: 'openai-responses',
+          baseUrl: 'https://api.openai.com/v1',
+          contextWindow: 8192,
+          maxTokens: 8192,
+          reasoning: false,
+          input: ['text'],
+        } as any,
+        {
+          id: 'gpt-6.1-sol',
+          name: 'GPT-6.1 Sol',
+          provider: 'openai',
+          api: 'openai-responses',
+          baseUrl: 'https://api.openai.com/v1',
+          contextWindow: 272000,
+          maxTokens: 128000,
+          reasoning: true,
+          input: ['text', 'image'],
+          thinkingLevelMap: { low: 'low', medium: 'medium', high: 'high', max: 'max' },
+        } as any,
+      ],
+    });
+
+    const result = resolvePiModelWithOverrides(registry, 'pi/gpt-7-sol', 'openai', false, [
+      {
+        id: 'pi/gpt-7-sol',
+        name: 'GPT-7 Sol',
+        contextWindow: 272000,
+        supportsImages: true,
+        supportsThinking: true,
+      },
+    ]);
+
+    expect(result).toBeDefined();
+    expect(result!.id).toBe('gpt-7-sol');
+    expect((result as any).api).toBe('openai-responses');
+    expect((result as any).maxTokens).toBe(128000);
+    expect((result as any).thinkingLevelMap).toEqual({ low: 'low', medium: 'medium', high: 'high', max: 'max' });
+    expect(result!.reasoning).toBe(true);
+    expect(result!.input).toEqual(['text', 'image']);
   });
 });

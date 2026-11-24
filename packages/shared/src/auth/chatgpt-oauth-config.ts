@@ -1,68 +1,88 @@
 /**
- * Shared OAuth configuration for ChatGPT authentication
+ * Shared OAuth configuration for OpenAI Sign in with ChatGPT (SIWC)
  *
- * This file is the single source of truth for all ChatGPT/OpenAI OAuth settings.
- * Used for the `chatgptAuthTokens` mode in Codex app-server.
- *
- * Note: These values are based on the OpenAI OAuth flow used by Codex CLI.
- * The client ID is the same one Codex uses for its browser-based OAuth.
+ * Implements OpenAI's official open-source / local app dynamic client registration
+ * and ChatGPT plan token-sharing OAuth 2.0 + OIDC + PKCE flow
+ * (aligned with openai/sign-in-with-chatgpt-devkit):
+ * - OIDC Discovery: https://auth.openai.com/.well-known/openid-configuration
+ * - Dynamic client registration: client_id=dynamic_agent_client + agent_name_hint=Shiori
+ * - Per-install persistent host ID: ext_agent_host_id=urn:uuid:<v4>
+ * - Loopback callback on 127.0.0.1 with ephemeral port
+ * - RS256 ID Token verification against discovered jwks_uri
+ * - RFC 7009 token revocation against discovered revocation_endpoint
+ * - Target API resource: https://api.openai.com/v1 (standard Responses API)
  */
 
 export const CHATGPT_OAUTH_CONFIG = {
   /**
-   * OAuth Client ID for ChatGPT authentication
-   * This is the official Codex CLI public client ID (registered with OpenAI)
+   * Initial sentinel client_id for OpenAI SIWC dynamic registration
    */
-  CLIENT_ID: 'app_EMoamEEZ73f0CkXaXp7hrann',
+  DYNAMIC_CLIENT_ID: 'dynamic_agent_client',
 
   /**
-   * Authorization URL - where users authenticate with their ChatGPT account
-   * Note: Must include /oauth/ in path
+   * Stable public app name sent on initial SIWC registration
    */
-  AUTH_URL: 'https://auth.openai.com/oauth/authorize',
+  AGENT_NAME_HINT: 'Shiori',
 
   /**
-   * Token URL - for exchanging codes and refreshing tokens
-   */
-  TOKEN_URL: 'https://auth.openai.com/oauth/token',
-
-  /**
-   * Redirect URI - where OAuth flow redirects after authentication
-   * Must match Codex CLI's registered redirect URI (port 1455)
-   */
-  REDIRECT_URI: 'http://localhost:1455/auth/callback',
-
-  /**
-   * Default port for the OAuth callback server
-   * Must match Codex CLI's port (1455)
-   */
-  CALLBACK_PORT: 1455,
-
-  /**
-   * OAuth scopes requested during authentication
-   * These scopes provide access to ChatGPT Plus features via Codex
-   */
-  SCOPES: 'openid profile email offline_access',
-
-  /**
-   * OpenID Connect issuer for token validation
+   * OpenID Connect issuer
    */
   ISSUER: 'https://auth.openai.com',
 
   /**
-   * Audience for token validation
+   * OpenID Connect Discovery document URL
+   */
+  DISCOVERY_URL: 'https://auth.openai.com/.well-known/openid-configuration',
+
+  /**
+   * Expected HTTPS origin for all discovered OAuth/OIDC endpoints
+   */
+  TRUSTED_AUTH_ORIGIN: 'https://auth.openai.com',
+
+  /**
+   * Official SIWC Authorization URL (reference; runtime resolves via OIDC discovery)
+   */
+  AUTH_URL: 'https://auth.openai.com/api/accounts/authorize',
+
+  /**
+   * Official SIWC Token URL (reference; runtime resolves via OIDC discovery)
+   */
+  TOKEN_URL: 'https://auth.openai.com/api/accounts/oauth/token',
+
+  /**
+   * Loopback host required by OpenAI SIWC (must be 127.0.0.1, not localhost)
+   */
+  CALLBACK_HOST: '127.0.0.1',
+
+  /**
+   * Loopback callback path
+   */
+  CALLBACK_PATH: '/auth/callback',
+
+  /**
+   * Ephemeral loopback port (0 = OS-assigned)
+   */
+  CALLBACK_PORT: 0,
+
+  /**
+   * Official SIWC scopes for direct ChatGPT plan token usage
+   */
+  SCOPES: 'openid profile email offline_access resource.invoke chatgpt.tokens.use.direct',
+
+  /**
+   * Required granted scope confirming ChatGPT plan token sharing was approved
+   */
+  REQUIRED_TOKEN_SHARING_SCOPE: 'chatgpt.tokens.use.direct',
+
+  /**
+   * Target OpenAI API resource (RFC 8707)
+   */
+  RESOURCE: 'https://api.openai.com/v1',
+
+  /**
+   * Alias for API audience / resource
    */
   AUDIENCE: 'https://api.openai.com/v1',
-
-  /**
-   * Enable Codex CLI simplified flow (required for Codex compatibility)
-   */
-  SIMPLIFIED_FLOW: true,
-
-  /**
-   * Include organization info in ID token (required for Codex compatibility)
-   */
-  ADD_ORGANIZATIONS: true,
 } as const;
 
 export type ChatGptOAuthConfig = typeof CHATGPT_OAUTH_CONFIG;

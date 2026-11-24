@@ -1,0 +1,25 @@
+{
+  "name": "Shiori Washi",
+  "description": "Warm handmade washi paper, ink charcoal, and vermilion seal accents",
+  "author": "Shiori",
+  "license": "MIT",
+  "supportedModes": ["light", "dark"],
+  "shikiTheme": {
+    "light": "github-light",
+    "dark": "vitesse-dark"
+  },
+  "background": "#f7f3eb",
+  "foreground": "#231f1b",
+  "accent": "#a63d2f",
+  "info": "#8c6d3f",
+  "success": "#3e6b4c",
+  "destructive": "#b8332a",
+  "dark": {
+    "background": "#181614",
+    "foreground": "#ebe4d8",
+    "accent": "#d46a58",
+    "info": "#cfa86e",
+    "success": "#76a885",
+    "destructive": "#e56b5b"
+  }
+}

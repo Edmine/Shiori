@@ -300,7 +300,9 @@ export default function AppSettingsPage() {
           <SettingsRow label={t("settings.about.version")}>
             <div className="flex items-center gap-2">
               <span className="text-label text-secondary tabular-nums">
-                {updateChecker.updateInfo?.currentVersion ?? t("common.loading")}
+                {updateChecker.updateInfo?.currentVersion
+                  ? `Shiori v${updateChecker.updateInfo.currentVersion}`
+                  : t("common.loading")}
               </span>
               {isElectron && updateChecker.isDownloading && updateChecker.updateInfo?.latestVersion && (
                 <div className="flex items-center gap-2 text-label-sm text-tertiary">
@@ -310,22 +312,23 @@ export default function AppSettingsPage() {
               )}
             </div>
           </SettingsRow>
+          <SettingsRow
+            label={t("settings.about.upstreamBaseline", "核心引擎基线")}
+            description={t("settings.about.upstreamBaselineDesc", "基于 Craft Agents 开源架构深度定制，本地数据独立存储于 ~/.shiori/。")}
+          >
+            <span className="text-label-sm text-tertiary tabular-nums">Craft Agents 0.15.11</span>
+          </SettingsRow>
           {isElectron && (
-            <SettingsRow label={t("settings.about.checkForUpdates")}>
+            <SettingsRow
+              label={t("settings.about.releases", "版本发布")}
+              description={t("settings.about.releasesDesc", "Shiori 已断开上游自动更新源，可在 GitHub Releases 获取新版本。")}
+            >
               <Button
                 variant="secondary"
                 size="md"
-                onClick={handleCheckForUpdates}
-                disabled={isCheckingForUpdates}
+                onClick={() => window.electronAPI.openUrl('https://github.com/Edmine/Shiori/releases')}
               >
-                {isCheckingForUpdates ? (
-                  <>
-                    <Spinner />
-                    {t("common.checking")}
-                  </>
-                ) : (
-                  t("settings.about.checkNow")
-                )}
+                {t("settings.about.openReleases", "查看 Releases")}
               </Button>
             </SettingsRow>
           )}

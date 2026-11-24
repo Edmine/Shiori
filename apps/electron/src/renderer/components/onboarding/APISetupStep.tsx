@@ -200,13 +200,6 @@ export function APISetupStep({
 
   const API_SETUP_OPTIONS: ApiSetupOption[] = [
     {
-      id: 'claude_oauth',
-      name: t("onboarding.apiSetup.claudeProMax"),
-      description: t("onboarding.apiSetup.claudeProMaxDesc"),
-      icon: API_SETUP_ICONS.claude_oauth,
-      providerType: 'anthropic',
-    },
-    {
       id: 'anthropic_api_key',
       name: t("onboarding.apiSetup.anthropicApiKey"),
       description: t("onboarding.apiSetup.anthropicApiKeyDesc"),

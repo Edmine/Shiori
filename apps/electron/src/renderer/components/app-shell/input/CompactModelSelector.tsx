@@ -40,6 +40,7 @@ import {
 import { ConnectionIcon } from '@/components/icons/ConnectionIcon'
 import { derivePickerMode } from './picker-mode'
 import {
+  getVisibleModelDescription,
   groupConnectionsByProvider,
   stripPiPrefixForDisplay,
 } from './model-picker-helpers'
@@ -347,15 +348,7 @@ export function CompactModelSelector({
                 ? stripPiPrefixForDisplay(getModelShortName(model))
                 : (model.name ?? stripPiPrefixForDisplay(model.id))
               const isSelected = currentModel === modelId
-              const descriptionKey =
-                typeof model !== 'string' && 'descriptionKey' in model
-                  ? (model.descriptionKey as string)
-                  : undefined
-              const description = descriptionKey
-                ? t(descriptionKey)
-                : (typeof model !== 'string' && 'description' in model
-                    ? (model.description as string)
-                    : '')
+              const description = getVisibleModelDescription(model, t)
               const showVision =
                 !!effectiveConnectionDetails &&
                 isCompatProvider(effectiveConnectionDetails.providerType)

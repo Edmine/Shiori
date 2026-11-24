@@ -13,6 +13,7 @@ export {
   invalidateSkillsCache,
   loadSkillBySlug,
   getSkillIconPath,
+  createSkill,
   deleteSkill,
   skillExists,
   listSkillSlugs,

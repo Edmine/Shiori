@@ -24,6 +24,13 @@ import { handlerLog } from './runtime'
 
 /** Copilot models are server-managed — refresh every 10 minutes to pick up policy changes. */
 const COPILOT_REFRESH_INTERVAL_MS = 10 * 60 * 1000
+/** OpenAI live /v1/models discovery — refresh every 30 minutes to pick up newly released models. */
+const OPENAI_REFRESH_INTERVAL_MS = 30 * 60 * 1000
+const OAUTH_REFRESH_BUFFER_MS = 5 * 60 * 1000
+
+function isOpenAiLiveProvider(piAuthProvider?: string): boolean {
+  return piAuthProvider === 'openai' || piAuthProvider === 'openai-codex'
+}
 
 // ============================================================
 // Types
@@ -75,6 +82,13 @@ class ModelRefreshService {
 
     // Skip compat providers — users configure models manually
     if (isCompatProvider(connection.providerType)) {
+      return
+    }
+
+    // Preserve user-customized model lists & per-model settings across all providers
+    // (including OAuth subscriptions like ChatGPT, Claude, and GitHub Copilot).
+    if (connection.modelSelectionMode === 'custom') {
+      handlerLog.info(`Model refresh [${slug}]: preserving user-customized model list (${connection.models?.length ?? 0} models)`)
       return
     }
 
@@ -173,8 +187,11 @@ class ModelRefreshService {
       // (models are server-managed by GitHub policy), other providers use
       // the fetcher's generic interval (0 = no periodic refresh for static SDK models).
       const isCopilot = conn.providerType === 'pi' && conn.piAuthProvider === 'github-copilot'
+      const isOpenAi = conn.providerType === 'pi' && isOpenAiLiveProvider(conn.piAuthProvider)
       if (isCopilot) {
         this.startTimer(conn.slug, COPILOT_REFRESH_INTERVAL_MS)
+      } else if (isOpenAi) {
+        this.startTimer(conn.slug, OPENAI_REFRESH_INTERVAL_MS)
       } else if (fetcher.refreshIntervalMs > 0) {
         this.startTimer(conn.slug, fetcher.refreshIntervalMs)
       }
@@ -207,8 +224,11 @@ class ModelRefreshService {
     const providerType = connection.providerType as FetchableProvider
     const fetcher = this.fetchers[providerType]
     const isCopilot = connection.providerType === 'pi' && connection.piAuthProvider === 'github-copilot'
+    const isOpenAi = connection.providerType === 'pi' && isOpenAiLiveProvider(connection.piAuthProvider)
     if (isCopilot && !this.timers.has(slug)) {
       this.startTimer(slug, COPILOT_REFRESH_INTERVAL_MS)
+    } else if (isOpenAi && !this.timers.has(slug)) {
+      this.startTimer(slug, OPENAI_REFRESH_INTERVAL_MS)
     } else if (fetcher && fetcher.refreshIntervalMs > 0 && !this.timers.has(slug)) {
       this.startTimer(slug, fetcher.refreshIntervalMs)
     }
@@ -265,6 +285,73 @@ export function getModelRefreshService(): ModelRefreshService {
 export function initModelRefreshService(getCredentials: CredentialResolver): ModelRefreshService {
   _service = new ModelRefreshService(MODEL_FETCHERS, getCredentials)
   return _service
+}
+
+/**
+ * Create a credential resolver for ModelRefreshService that automatically
+ * refreshes expired OpenAI Sign in with ChatGPT OAuth tokens and exposes
+ * a 401 retry refresh hook for live model discovery.
+ */
+export function createDefaultModelFetcherCredentialResolver(): CredentialResolver {
+  return async (slug: string): Promise<ModelFetcherCredentials> => {
+    const { getCredentialManager } = await import('@craft-agent/shared/credentials')
+    const manager = getCredentialManager()
+    const connection = getLlmConnection(slug)
+    const [apiKey, oauth] = await Promise.all([
+      manager.getLlmApiKey(slug).catch(() => null),
+      manager.getLlmOAuth(slug).catch(() => null),
+    ])
+
+    let accessToken = oauth?.accessToken
+    let refreshToken = oauth?.refreshToken
+    let idToken = oauth?.idToken
+
+    const isOpenAiOAuth =
+      connection?.providerType === 'pi' &&
+      connection.authType === 'oauth' &&
+      isOpenAiLiveProvider(connection.piAuthProvider)
+
+    const refreshChatGptAccessToken = async (): Promise<string | undefined> => {
+      const latest = await manager.getLlmOAuth(slug).catch(() => null)
+      const activeRefreshToken = latest?.refreshToken || refreshToken
+      if (!activeRefreshToken) return undefined
+      const { refreshChatGptTokens } = await import('@craft-agent/shared/auth')
+      const refreshed = await refreshChatGptTokens(activeRefreshToken)
+      await manager.setLlmOAuth(slug, {
+        accessToken: refreshed.accessToken,
+        idToken: refreshed.idToken || latest?.idToken || idToken,
+        refreshToken: refreshed.refreshToken || activeRefreshToken,
+        expiresAt: refreshed.expiresAt,
+      })
+      accessToken = refreshed.accessToken
+      refreshToken = refreshed.refreshToken || activeRefreshToken
+      idToken = refreshed.idToken || idToken
+      return refreshed.accessToken
+    }
+
+    if (
+      isOpenAiOAuth &&
+      oauth?.refreshToken &&
+      oauth.expiresAt &&
+      Date.now() > oauth.expiresAt - OAUTH_REFRESH_BUFFER_MS
+    ) {
+      try {
+        await refreshChatGptAccessToken()
+      } catch (error) {
+        handlerLog.warn(
+          `Model refresh [${slug}]: proactive ChatGPT OAuth refresh failed: ${error instanceof Error ? error.message : String(error)}`,
+        )
+      }
+    }
+
+    return {
+      apiKey: apiKey ?? undefined,
+      oauthAccessToken: accessToken,
+      oauthRefreshToken: refreshToken,
+      oauthIdToken: idToken,
+      ...(isOpenAiOAuth && refreshToken ? { refreshOAuthAccessToken: refreshChatGptAccessToken } : {}),
+    }
+  }
 }
 
 export { setFetcherPlatform } from './runtime'
