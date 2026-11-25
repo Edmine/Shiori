@@ -201,22 +201,23 @@ else
     LINUX_ARCH="aarch64"
 fi
 
-# electron-builder outputs: Craft-Agents-x86_64.AppImage or Craft-Agents-aarch64.AppImage
-BUILT_APPIMAGE_NAME="Craft-Agents-${LINUX_ARCH}.AppImage"
-BUILT_APPIMAGE_PATH="$ELECTRON_DIR/release/$BUILT_APPIMAGE_NAME"
+ELECTRON_VERSION=$(cat "$ELECTRON_DIR/package.json" | grep '"version"' | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
+# electron-builder outputs: Shiori-${version}-x86_64.AppImage or Shiori-${version}-arm64.AppImage
+BUILT_APPIMAGE_PATH=$(ls "$ELECTRON_DIR/release"/Shiori-*.AppImage 2>/dev/null | head -n 1 || true)
 
-if [ ! -f "$BUILT_APPIMAGE_PATH" ]; then
-    echo "ERROR: Expected AppImage not found at $BUILT_APPIMAGE_PATH"
+if [ -z "$BUILT_APPIMAGE_PATH" ] || [ ! -f "$BUILT_APPIMAGE_PATH" ]; then
+    echo "ERROR: Expected Shiori AppImage not found in $ELECTRON_DIR/release/"
     echo "Contents of release directory:"
     ls -la "$ELECTRON_DIR/release/"
     exit 1
 fi
 
-# Rename to our standard naming convention: Craft-Agents-x64.AppImage, Craft-Agents-arm64.AppImage
-APPIMAGE_NAME="Craft-Agents-${ARCH}.AppImage"
+APPIMAGE_NAME="Shiori-${ELECTRON_VERSION}-${ARCH}.AppImage"
 APPIMAGE_PATH="$ELECTRON_DIR/release/$APPIMAGE_NAME"
-mv "$BUILT_APPIMAGE_PATH" "$APPIMAGE_PATH"
-echo "Renamed $BUILT_APPIMAGE_NAME -> $APPIMAGE_NAME"
+if [ "$BUILT_APPIMAGE_PATH" != "$APPIMAGE_PATH" ]; then
+    mv "$BUILT_APPIMAGE_PATH" "$APPIMAGE_PATH"
+    echo "Renamed $(basename "$BUILT_APPIMAGE_PATH") -> $APPIMAGE_NAME"
+fi
 
 echo ""
 echo "=== Build Complete ==="
@@ -224,8 +225,6 @@ echo "AppImage: $ELECTRON_DIR/release/${APPIMAGE_NAME}"
 echo "Size: $(du -h "$ELECTRON_DIR/release/${APPIMAGE_NAME}" | cut -f1)"
 
 # 9. Create manifest.json for upload script
-# Read version from package.json
-ELECTRON_VERSION=$(cat "$ELECTRON_DIR/package.json" | grep '"version"' | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
 echo "Creating manifest.json (version: $ELECTRON_VERSION)..."
 mkdir -p "$ROOT_DIR/.build/upload"
 echo "{\"version\": \"$ELECTRON_VERSION\"}" > "$ROOT_DIR/.build/upload/manifest.json"
