@@ -43,6 +43,8 @@ jobs:
 
       - name: Build Windows installer & portable zip
         shell: pwsh
+        env:
+          NODE_OPTIONS: '--max-old-space-size=6144'
         run: pwsh -File apps/electron/scripts/build-win.ps1
 
       - name: Upload Windows artifacts
