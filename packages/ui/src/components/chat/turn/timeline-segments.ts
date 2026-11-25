@@ -12,6 +12,15 @@ export type TurnTimelineSegment =
       activities: ActivityItem[]
     }
 
+export interface BuildTurnTimelineSegmentsOptions {
+  /**
+   * When true (turn has completed with a final response or plan), fold all non-final
+   * activities — including top-level intermediate progress updates — into a single
+   * collapsible work log so finished turns stay compact and scannable.
+   */
+  collapseNonFinal?: boolean
+}
+
 function isDuplicateOfFinalResponse(activity: ActivityItem, response?: ResponseContent): boolean {
   if (!response) return false
   if (response.messageId && response.messageId === activity.id) return true
@@ -46,7 +55,31 @@ export function isSurfaceableCommentary(
 export function buildTurnTimelineSegments(
   sortedActivities: ActivityItem[],
   response?: ResponseContent,
+  options: BuildTurnTimelineSegmentsOptions = {},
 ): TurnTimelineSegment[] {
+  const { collapseNonFinal = false } = options
+
+  if (collapseNonFinal) {
+    const collapsedActivities: ActivityItem[] = []
+    for (const activity of sortedActivities) {
+      if (activity.type === 'intermediate' && !activity.parentId) {
+        if (!activity.content?.trim() || isDuplicateOfFinalResponse(activity, response)) {
+          continue
+        }
+      }
+      collapsedActivities.push(activity)
+    }
+
+    if (collapsedActivities.length === 0) return []
+    return [
+      {
+        kind: 'work',
+        id: `work-${collapsedActivities[0]!.id}`,
+        activities: collapsedActivities,
+      },
+    ]
+  }
+
   const segments: TurnTimelineSegment[] = []
   let currentWork: ActivityItem[] = []
 

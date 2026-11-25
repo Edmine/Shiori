@@ -76,6 +76,53 @@ describe('Turn timeline segmentation (Codex-style live commentary)', () => {
     expect(segments[0]!.kind).toBe('work')
   })
 
+  it('collapses non-final commentary and tool groups into one work log once complete', () => {
+    const activities: ActivityItem[] = [
+      makeCommentary('c1', '先检查现有配置文件。', { timestamp: 1 }),
+      makeTool('t1', { timestamp: 2, intent: '读取配置' }),
+      makeCommentary('c2', '已定位原因，开始修改代码。', { timestamp: 3 }),
+      makeTool('t2', { timestamp: 4, intent: '修改文件' }),
+      makeCommentary('c-empty', '   ', { timestamp: 5 }),
+      makeCommentary('c-final', '全部修复完成。', { timestamp: 6 }),
+    ]
+    const response: ResponseContent = {
+      text: '全部修复完成。',
+      isStreaming: false,
+      messageId: 'c-final',
+    }
+
+    const segments = buildTurnTimelineSegments(activities, response, { collapseNonFinal: true })
+    expect(segments).toHaveLength(1)
+    expect(segments[0]!.kind).toBe('work')
+    if (segments[0]!.kind === 'work') {
+      expect(segments[0]!.activities.map(a => a.id)).toEqual(['c1', 't1', 'c2', 't2'])
+    }
+  })
+
+  it('returns no work log when collapsed turn only had the promoted final commentary', () => {
+    const activities: ActivityItem[] = [
+      makeCommentary('c-final', '直接完成回复。', { timestamp: 1 }),
+    ]
+    const response: ResponseContent = {
+      text: '直接完成回复。',
+      isStreaming: false,
+      messageId: 'c-final',
+    }
+
+    const segments = buildTurnTimelineSegments(activities, response, { collapseNonFinal: true })
+    expect(segments).toHaveLength(0)
+  })
+
+  it('falls back to stripped intermediate commentary for completed preview when tools have no intent', () => {
+    const activities: ActivityItem[] = [
+      makeCommentary('c1', '已定位到 **TurnCard** 折叠逻辑并完成调整。', { timestamp: 1 }),
+      makeTool('t1', { status: 'completed', timestamp: 2 }),
+    ]
+
+    const preview = getWorkLogPreview(activities, undefined, false, true, true)
+    expect(preview.text).toBe('已定位到 TurnCard 折叠逻辑并完成调整。')
+  })
+
   it('shows the currently running or latest step intent in getWorkLogPreview instead of freezing on step 1', () => {
     const activities: ActivityItem[] = [
       makeTool('t1', { status: 'completed', intent: '确认 Git 搬到 C 盘后 bash 工具可用', timestamp: 1 }),

@@ -1,6 +1,7 @@
 appId: com.shiori.desktop
 productName: Shiori
 copyright: Copyright © 2026 Shiori
+publish: null
 
 electronVersion: "39.2.7"
 

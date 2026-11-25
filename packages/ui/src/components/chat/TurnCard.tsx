@@ -1672,10 +1672,15 @@ export const TurnCard = React.memo(function TurnCard({
     [allSortedActivities]
   )
 
-  // Interleave top-level AI commentary updates directly on the timeline between collapsible tool groups
+  const hasFinalOutput = Boolean(response && !response.isStreaming) || planActivities.length > 0
+  const collapseNonFinalTimeline = isComplete && hasFinalOutput
+
+  // While running, interleave top-level AI commentary directly on the timeline between tool groups.
+  // Once complete with a final response or plan, fold all non-final commentary and tool steps into
+  // a single collapsible work log above the final output.
   const timelineSegments = useMemo(
-    () => buildTurnTimelineSegments(sortedActivities, response),
-    [sortedActivities, response]
+    () => buildTurnTimelineSegments(sortedActivities, response, { collapseNonFinal: collapseNonFinalTimeline }),
+    [sortedActivities, response, collapseNonFinalTimeline]
   )
 
   const workSegmentMeta = useMemo(() => {

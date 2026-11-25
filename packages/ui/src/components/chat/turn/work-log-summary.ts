@@ -5,7 +5,7 @@
 import i18n from 'i18next'
 import { isParentTaskTool } from '@craft-agent/shared/utils/toolNames'
 import type { ActivityItem } from '../TurnCard'
-import { getToolDisplayName } from './tool-display'
+import { getToolDisplayName, stripMarkdown } from './tool-display'
 
 export interface WorkLogPreview {
   /** Preview text after the step count, or undefined for the plain "N steps completed" summary */
@@ -56,7 +56,8 @@ export function getWorkLogPreview(
 
     const latestIntermediate = reversed.find(a => a.type === 'intermediate' && a.content?.trim())
     if (latestIntermediate?.content) {
-      return { text: latestIntermediate.content.trim() }
+      const cleaned = stripMarkdown(latestIntermediate.content)
+      if (cleaned) return { text: cleaned }
     }
 
     const latestWithIntent = reversed.find(a => a.intent)
@@ -80,6 +81,12 @@ export function getWorkLogPreview(
   const latestTask = reversed.find(a => isParentTaskTool(a.toolName ?? '') && a.toolInput?.description)
   if (latestTask?.toolInput?.description) {
     return { text: latestTask.toolInput.description as string }
+  }
+
+  const latestIntermediate = reversed.find(a => a.type === 'intermediate' && a.content?.trim())
+  if (latestIntermediate?.content) {
+    const cleaned = stripMarkdown(latestIntermediate.content)
+    if (cleaned) return { text: cleaned }
   }
 
   // Fallback: step count carries the summary ("N steps completed")

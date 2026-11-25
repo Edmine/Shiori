@@ -2,12 +2,12 @@ import { describe, expect, it } from 'bun:test'
 import { inferModelSelectionMode, shouldMigratePiOpenAiProvider, shouldRepairPiApiKeyCodexProvider } from '../storage'
 
 describe('shouldMigratePiOpenAiProvider', () => {
-  it('migrates legacy Pi OAuth OpenAI connections to openai-codex', () => {
+  it('does not rewrite Pi OAuth OpenAI connections to openai-codex (SIWC uses openai)', () => {
     expect(shouldMigratePiOpenAiProvider({
       providerType: 'pi',
       piAuthProvider: 'openai',
       authType: 'oauth',
-    })).toBe(true)
+    })).toBe(false)
   })
 
   it('does not migrate Pi API key OpenAI connections', () => {
